@@ -26,7 +26,7 @@ type ShoeSize = {
 type User = {
   id: string;
   nombre: string;
-  email: string;
+  password: string;
   rol: "Admin" | "Usuario";
 };
 
@@ -65,8 +65,8 @@ const MOCK_INVENTORY: Shoe[] = [
 ];
 
 const MOCK_USERS: User[] = [
-  { id: "1", nombre: "Administrador Principal", email: "admin@sabatus.com", rol: "Admin" },
-  { id: "2", nombre: "Vendedor 1", email: "vendedor1@sabatus.com", rol: "Usuario" },
+  { id: "1", nombre: "Administrador Principal", password: "admin", rol: "Admin" },
+  { id: "2", nombre: "Vendedor 1", password: "vend1", rol: "Usuario" },
 ];
 
 export default function AdminDashboard() {
@@ -99,9 +99,13 @@ export default function AdminDashboard() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [userFormData, setUserFormData] = useState({
     nombre: "",
-    email: "",
+    password: "",
     rol: "Usuario" as "Admin" | "Usuario"
   });
+
+  const generatePassword = () => {
+    return Math.random().toString(36).slice(-6).toUpperCase();
+  };
 
   useEffect(() => {
     setIsClient(true);
@@ -174,14 +178,14 @@ export default function AdminDashboard() {
       setEditingUserId(user.id);
       setUserFormData({
         nombre: user.nombre,
-        email: user.email,
+        password: user.password,
         rol: user.rol
       });
     } else {
       setEditingUserId(null);
       setUserFormData({
         nombre: "",
-        email: "",
+        password: generatePassword(),
         rol: "Usuario"
       });
     }
@@ -497,8 +501,8 @@ export default function AdminDashboard() {
               <table>
                 <thead>
                   <tr>
-                    <th>Nombre</th>
-                    <th>Email</th>
+                    <th>Nombre de Usuario</th>
+                    <th>Contraseña</th>
                     <th>Rol</th>
                     <th>Acciones</th>
                   </tr>
@@ -506,8 +510,12 @@ export default function AdminDashboard() {
                 <tbody>
                   {users.map((u) => (
                     <tr key={u.id}>
-                      <td>{u.nombre}</td>
-                      <td>{u.email}</td>
+                      <td style={{ fontWeight: 500 }}>{u.nombre}</td>
+                      <td>
+                        <code style={{ background: 'var(--bg-tertiary)', padding: '0.2rem 0.4rem', borderRadius: '4px', letterSpacing: '1px' }}>
+                          {u.password}
+                        </code>
+                      </td>
                       <td>
                         <span className={`${styles.badge} ${u.rol === 'Admin' ? styles.badgeSuccess : styles.badgeWarning}`}>
                           {u.rol}
@@ -699,7 +707,7 @@ export default function AdminDashboard() {
             <form onSubmit={handleSaveUser}>
               <div className={styles.modalBody}>
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Nombre Completo *</label>
+                  <label className={styles.label}>Nombre de Usuario *</label>
                   <input 
                     type="text" 
                     className="input" 
@@ -709,14 +717,24 @@ export default function AdminDashboard() {
                   />
                 </div>
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Correo Electrónico (Email) *</label>
-                  <input 
-                    type="email" 
-                    className="input" 
-                    required
-                    value={userFormData.email}
-                    onChange={(e) => setUserFormData({...userFormData, email: e.target.value})}
-                  />
+                  <label className={styles.label}>Contraseña Generada</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      readOnly
+                      value={userFormData.password}
+                      style={{ fontFamily: 'monospace', letterSpacing: '1px', flex: 1, backgroundColor: 'var(--bg-secondary)' }}
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      onClick={() => setUserFormData({...userFormData, password: generatePassword()})}
+                      title="Generar nueva contraseña"
+                    >
+                      Regenerar
+                    </button>
+                  </div>
                 </div>
                 <div className={styles.formGroup}>
                   <label className={styles.label}>Rol en el Sistema *</label>
