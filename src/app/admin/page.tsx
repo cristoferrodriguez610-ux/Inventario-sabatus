@@ -109,7 +109,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     setIsClient(true);
+    // Load users from localStorage
+    const savedUsers = localStorage.getItem("sabatus_users");
+    if (savedUsers) {
+      setUsers(JSON.parse(savedUsers));
+    } else {
+      localStorage.setItem("sabatus_users", JSON.stringify(MOCK_USERS));
+    }
   }, []);
+
+  // Update localStorage when users change
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem("sabatus_users", JSON.stringify(users));
+    }
+  }, [users, isClient]);
 
   const handleLogout = () => {
     router.push("/");

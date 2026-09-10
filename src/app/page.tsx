@@ -19,12 +19,35 @@ export default function Login() {
 
     // Simulate login for now until API is connected
     setTimeout(() => {
-      if (username === "admin" && password === "admin123") {
-        router.push("/admin");
-      } else if (username === "user" && password === "user123") {
-        router.push("/inventario");
+      // First, get users from localStorage
+      const savedUsers = localStorage.getItem("sabatus_users");
+      let users: any[] = [];
+      
+      if (savedUsers) {
+        users = JSON.parse(savedUsers);
       } else {
-        setError("Usuario o contraseña incorrectos");
+        // Fallback mock users if none exist in localStorage yet
+        users = [
+          { nombre: "admin", password: "admin", rol: "Admin" },
+        ];
+      }
+
+      // Check if user exists
+      const user = users.find(u => u.nombre.toLowerCase() === username.toLowerCase() && u.password === password);
+
+      if (user) {
+        if (user.rol === "Admin") {
+          router.push("/admin");
+        } else {
+          router.push("/inventario");
+        }
+      } else {
+        // Ultimate fallback just in case
+        if (username === "admin" && password === "admin123") {
+          router.push("/admin");
+        } else {
+          setError("Usuario o contraseña incorrectos");
+        }
       }
       setIsLoading(false);
     }, 1000);
