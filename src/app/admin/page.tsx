@@ -23,6 +23,13 @@ type ShoeSize = {
   stock: number;
 };
 
+type User = {
+  id: string;
+  nombre: string;
+  email: string;
+  rol: "Admin" | "Usuario";
+};
+
 type Shoe = {
   id: string;
   nombre: string;
@@ -57,6 +64,11 @@ const MOCK_INVENTORY: Shoe[] = [
   },
 ];
 
+const MOCK_USERS: User[] = [
+  { id: "1", nombre: "Administrador Principal", email: "admin@sabatus.com", rol: "Admin" },
+  { id: "2", nombre: "Vendedor 1", email: "vendedor1@sabatus.com", rol: "Usuario" },
+];
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("inventory");
@@ -79,6 +91,16 @@ export default function AdminDashboard() {
     precio: 0,
     imageUrl: "",
     tallas: [] as ShoeSize[]
+  });
+
+  // User Management State
+  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userFormData, setUserFormData] = useState({
+    nombre: "",
+    email: "",
+    rol: "Usuario" as "Admin" | "Usuario"
   });
 
   useEffect(() => {
@@ -144,6 +166,43 @@ export default function AdminDashboard() {
     e.stopPropagation();
     if (window.confirm("¿Estás seguro de eliminar este calzado?")) {
       setInventory(inventory.filter(item => item.id !== id));
+    }
+  };
+
+  const openUserModal = (user?: User) => {
+    if (user) {
+      setEditingUserId(user.id);
+      setUserFormData({
+        nombre: user.nombre,
+        email: user.email,
+        rol: user.rol
+      });
+    } else {
+      setEditingUserId(null);
+      setUserFormData({
+        nombre: "",
+        email: "",
+        rol: "Usuario"
+      });
+    }
+    setIsUserModalOpen(true);
+  };
+
+  const closeUserModal = () => setIsUserModalOpen(false);
+
+  const handleSaveUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingUserId) {
+      setUsers(users.map(u => u.id === editingUserId ? { ...userFormData, id: editingUserId } : u));
+    } else {
+      setUsers([...users, { ...userFormData, id: Date.now().toString() }]);
+    }
+    closeUserModal();
+  };
+
+  const handleDeleteUser = (id: string) => {
+    if (window.confirm("¿Estás seguro de eliminar este usuario?")) {
+      setUsers(users.filter(u => u.id !== id));
     }
   };
 
@@ -425,13 +484,54 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === "users" && (
-          <header className={styles.header}>
-            <h1 className={styles.title}>Gestión de Usuarios</h1>
-            <button className="btn btn-primary">
-              <Plus size={20} />
-              Añadir Usuario
-            </button>
-          </header>
+          <>
+            <header className={styles.header}>
+              <h1 className={styles.title}>Gestión de Usuarios</h1>
+              <button className="btn btn-primary" onClick={() => openUserModal()}>
+                <Plus size={20} />
+                Añadir Usuario
+              </button>
+            </header>
+
+            <div className={styles.tableContainer} style={{ marginTop: '2rem' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr key={u.id}>
+                      <td>{u.nombre}</td>
+                      <td>{u.email}</td>
+                      <td>
+                        <span className={`${styles.badge} ${u.rol === 'Admin' ? styles.badgeSuccess : styles.badgeWarning}`}>
+                          {u.rol}
+                        </span>
+                      </td>
+                      <td>
+                        <div className={styles.actionCell}>
+                          <button className={styles.actionBtn} onClick={() => openUserModal(u)}><Edit2 size={16} /></button>
+                          <button className={styles.actionBtn} onClick={() => handleDeleteUser(u.id)}><Trash2 size={16} color="var(--danger)" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: "center", padding: "3rem" }}>
+                        No hay usuarios registrados
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </main>
 
@@ -578,6 +678,66 @@ export default function AdminDashboard() {
                 </button>
                 <button type="submit" className="btn btn-primary">
                   {editingId ? "Guardar Cambios" : "Añadir Calzado"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* User Form Modal */}
+      {isUserModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={`${styles.modalContent} animate-fade-in`} style={{ maxWidth: '400px' }}>
+            <div className={styles.modalHeader}>
+              <h2 className={styles.modalTitle}>{editingUserId ? "Editar Usuario" : "Añadir Nuevo Usuario"}</h2>
+              <button className={styles.closeBtn} onClick={closeUserModal}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveUser}>
+              <div className={styles.modalBody}>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Nombre Completo *</label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    required
+                    value={userFormData.nombre}
+                    onChange={(e) => setUserFormData({...userFormData, nombre: e.target.value})}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Correo Electrónico (Email) *</label>
+                  <input 
+                    type="email" 
+                    className="input" 
+                    required
+                    value={userFormData.email}
+                    onChange={(e) => setUserFormData({...userFormData, email: e.target.value})}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Rol en el Sistema *</label>
+                  <select 
+                    className="input" 
+                    value={userFormData.rol}
+                    onChange={(e) => setUserFormData({...userFormData, rol: e.target.value as "Admin" | "Usuario"})}
+                    style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="Usuario">Usuario (Solo ver inventario)</option>
+                    <option value="Admin">Administrador (Control total)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className={styles.modalFooter}>
+                <button type="button" className="btn btn-secondary" onClick={closeUserModal}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  {editingUserId ? "Guardar Cambios" : "Añadir Usuario"}
                 </button>
               </div>
             </form>
