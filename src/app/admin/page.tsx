@@ -64,6 +64,8 @@ export default function AdminDashboard() {
   const [inventory, setInventory] = useState<Shoe[]>(MOCK_INVENTORY);
   const [isClient, setIsClient] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [editingStockId, setEditingStockId] = useState<{shoeId: string, sizeIdx: number} | null>(null);
+  const [tempStockVal, setTempStockVal] = useState<number>(0);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -162,6 +164,29 @@ export default function AdminDashboard() {
     const newTallas = [...formData.tallas];
     newTallas[index] = { ...newTallas[index], [field]: value };
     setFormData({ ...formData, tallas: newTallas });
+  };
+
+  const handleQuickStockChange = (shoeId: string, sizeIdx: number, delta: number) => {
+    setInventory(inventory.map(item => {
+      if (item.id === shoeId) {
+        const newTallas = [...item.tallas];
+        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: Math.max(0, newTallas[sizeIdx].stock + delta) };
+        return { ...item, tallas: newTallas };
+      }
+      return item;
+    }));
+  };
+
+  const saveInlineStock = (shoeId: string, sizeIdx: number) => {
+    setInventory(inventory.map(item => {
+      if (item.id === shoeId) {
+        const newTallas = [...item.tallas];
+        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: Math.max(0, tempStockVal) };
+        return { ...item, tallas: newTallas };
+      }
+      return item;
+    }));
+    setEditingStockId(null);
   };
 
   const filteredInventory = inventory.filter((item) =>
@@ -329,14 +354,52 @@ export default function AdminDashboard() {
                                 <h4>Tallas Disponibles</h4>
                                 <div className={styles.sizesGrid}>
                                   {item.tallas.length > 0 ? (
-                                    item.tallas.map((t, idx) => (
+                                    item.tallas.map((t, idx) => {
+                                      const isEditingThis = editingStockId?.shoeId === item.id && editingStockId?.sizeIdx === idx;
+                                      
+                                      return (
                                       <div key={idx} className={styles.sizeCard}>
                                         <span className={styles.sizeNumber}>{t.talla}</span>
-                                        <span className={styles.sizeStock}>
-                                          {t.stock} {t.stock === 1 ? 'par' : 'pares'}
-                                        </span>
+                                        <div className={styles.sizeStockContainer}>
+                                          <button 
+                                            className={styles.stockBtn} 
+                                            onClick={(e) => { e.stopPropagation(); handleQuickStockChange(item.id, idx, -1); }}
+                                          >-</button>
+                                          
+                                          {isEditingThis ? (
+                                            <input 
+                                              type="number"
+                                              className={styles.stockInput}
+                                              value={tempStockVal}
+                                              autoFocus
+                                              onChange={(e) => setTempStockVal(Number(e.target.value))}
+                                              onBlur={() => saveInlineStock(item.id, idx)}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') saveInlineStock(item.id, idx);
+                                                if (e.key === 'Escape') setEditingStockId(null);
+                                              }}
+                                            />
+                                          ) : (
+                                            <span 
+                                              className={styles.sizeStock}
+                                              onDoubleClick={(e) => {
+                                                e.stopPropagation();
+                                                setTempStockVal(t.stock);
+                                                setEditingStockId({ shoeId: item.id, sizeIdx: idx });
+                                              }}
+                                              title="Doble clic para editar"
+                                            >
+                                              {t.stock} {t.stock === 1 ? 'par' : 'pares'}
+                                            </span>
+                                          )}
+
+                                          <button 
+                                            className={styles.stockBtn}
+                                            onClick={(e) => { e.stopPropagation(); handleQuickStockChange(item.id, idx, 1); }}
+                                          >+</button>
+                                        </div>
                                       </div>
-                                    ))
+                                    )})
                                   ) : (
                                     <span style={{ color: 'var(--text-secondary)' }}>No hay tallas registradas.</span>
                                   )}

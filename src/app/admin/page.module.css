@@ -241,8 +241,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 80px;
+  min-width: 100px;
   box-shadow: var(--shadow-sm);
+  position: relative;
 }
 
 .sizeNumber {
@@ -251,9 +252,57 @@
   color: var(--text-primary);
 }
 
+.sizeStockContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
 .sizeStock {
   font-size: 0.75rem;
   color: var(--text-secondary);
+  cursor: text;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background-color var(--transition-fast);
+}
+
+.sizeStock:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.stockInput {
+  width: 50px;
+  text-align: center;
+  font-size: 0.75rem;
+  padding: 0.25rem;
+  border: 1px solid var(--accent-primary);
+  border-radius: 4px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.stockBtn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.stockBtn:hover {
+  background-color: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
 }
 
 .actionCell {
