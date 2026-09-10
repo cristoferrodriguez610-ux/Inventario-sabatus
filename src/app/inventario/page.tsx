@@ -2,30 +2,52 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import React from "react";
 import {
   Package,
   LogOut,
   Search,
+  ChevronDown
 } from "lucide-react";
 import styles from "../admin/page.module.css";
+
+type ShoeSize = {
+  talla: number;
+  stock: number;
+};
 
 type Shoe = {
   id: string;
   nombre: string;
   marca: string;
-  talla: number;
   color: string;
-  stock: number;
   precio: number;
   imageUrl: string;
+  tallas: ShoeSize[];
 };
 
 // Mock Data
 const MOCK_INVENTORY: Shoe[] = [
-  { id: "1", nombre: "Nike Air Max", marca: "Nike", talla: 42, color: "Negro", stock: 15, precio: 120, imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80" },
-  { id: "2", nombre: "Adidas Ultraboost", marca: "Adidas", talla: 40, color: "Blanco", stock: 5, precio: 180, imageUrl: "https://images.unsplash.com/photo-1518002171953-a080ee817801?w=150&q=80" },
-  { id: "3", nombre: "Puma RS-X", marca: "Puma", talla: 39, color: "Rojo/Azul", stock: 0, precio: 110, imageUrl: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=150&q=80" },
-  { id: "4", nombre: "New Balance 574", marca: "New Balance", talla: 41, color: "Gris", stock: 24, precio: 95, imageUrl: "https://images.unsplash.com/photo-1539185441755-769473a23570?w=150&q=80" },
+  { 
+    id: "1", nombre: "Nike Air Max", marca: "Nike", color: "Negro", precio: 120, 
+    imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80",
+    tallas: [{talla: 40, stock: 5}, {talla: 41, stock: 5}, {talla: 42, stock: 5}]
+  },
+  { 
+    id: "2", nombre: "Adidas Ultraboost", marca: "Adidas", color: "Blanco", precio: 180, 
+    imageUrl: "https://images.unsplash.com/photo-1518002171953-a080ee817801?w=150&q=80",
+    tallas: [{talla: 39, stock: 2}, {talla: 40, stock: 3}]
+  },
+  { 
+    id: "3", nombre: "Puma RS-X", marca: "Puma", color: "Rojo/Azul", precio: 110, 
+    imageUrl: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=150&q=80",
+    tallas: [{talla: 40, stock: 0}, {talla: 41, stock: 0}]
+  },
+  { 
+    id: "4", nombre: "New Balance 574", marca: "New Balance", color: "Gris", precio: 95, 
+    imageUrl: "https://images.unsplash.com/photo-1539185441755-769473a23570?w=150&q=80",
+    tallas: [{talla: 42, stock: 10}, {talla: 43, stock: 14}]
+  },
 ];
 
 export default function UserInventory() {
@@ -33,6 +55,7 @@ export default function UserInventory() {
   const [searchQuery, setSearchQuery] = useState("");
   const [inventory, setInventory] = useState<Shoe[]>(MOCK_INVENTORY);
   const [isClient, setIsClient] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   useEffect(() => {
     setIsClient(true);
@@ -41,6 +64,14 @@ export default function UserInventory() {
   const handleLogout = () => {
     router.push("/");
   };
+
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => 
+      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
+    );
+  };
+
+  const getTotalStock = (tallas: ShoeSize[]) => tallas.reduce((sum, t) => sum + t.stock, 0);
 
   const filteredInventory = inventory.filter((item) =>
     item.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -100,39 +131,74 @@ export default function UserInventory() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: '40px' }}></th>
                   <th>Producto</th>
                   <th>Marca</th>
-                  <th>Talla</th>
                   <th>Color</th>
                   <th>Precio</th>
-                  <th>Stock</th>
+                  <th>Stock Total</th>
                   <th>Estado</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredInventory.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <div className={styles.productCell}>
-                        <img 
-                          src={item.imageUrl || "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80"} 
-                          alt={item.nombre} 
-                          className={styles.shoeImage}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
-                          }}
-                        />
-                        <span>{item.nombre}</span>
-                      </div>
-                    </td>
-                    <td>{item.marca}</td>
-                    <td>{item.talla}</td>
-                    <td>{item.color}</td>
-                    <td>${item.precio}</td>
-                    <td>{item.stock}</td>
-                    <td>{getStockBadge(item.stock)}</td>
-                  </tr>
-                ))}
+                {filteredInventory.map((item) => {
+                  const isExpanded = expandedRows.includes(item.id);
+                  const totalStock = getTotalStock(item.tallas);
+                  
+                  return (
+                    <React.Fragment key={item.id}>
+                      <tr className={styles.mainRow} onClick={() => toggleRow(item.id)}>
+                        <td>
+                          <ChevronDown 
+                            size={18} 
+                            className={`${styles.expandIcon} ${isExpanded ? styles.open : ""}`} 
+                          />
+                        </td>
+                        <td>
+                          <div className={styles.productCell}>
+                            <img 
+                              src={item.imageUrl || "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80"} 
+                              alt={item.nombre} 
+                              className={styles.shoeImage}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
+                              }}
+                            />
+                            <span>{item.nombre}</span>
+                          </div>
+                        </td>
+                        <td>{item.marca}</td>
+                        <td>{item.color}</td>
+                        <td>${item.precio}</td>
+                        <td>{totalStock}</td>
+                        <td>{getStockBadge(totalStock)}</td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className={styles.expandedContent}>
+                          <td colSpan={7}>
+                            <div className={styles.expandedInner}>
+                              <h4>Tallas Disponibles</h4>
+                              <div className={styles.sizesGrid}>
+                                {item.tallas.length > 0 ? (
+                                  item.tallas.map((t, idx) => (
+                                    <div key={idx} className={styles.sizeCard}>
+                                      <span className={styles.sizeNumber}>{t.talla}</span>
+                                      <span className={styles.sizeStock}>
+                                        {t.stock} {t.stock === 1 ? 'par' : 'pares'}
+                                      </span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <span style={{ color: 'var(--text-secondary)' }}>No hay tallas registradas.</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
                 {filteredInventory.length === 0 && (
                   <tr>
                     <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>

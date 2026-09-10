@@ -13,28 +13,48 @@ import {
   Edit2,
   Trash2,
   AlertCircle,
-  X
+  X,
+  ChevronDown
 } from "lucide-react";
 import styles from "./page.module.css";
 
-// Definir tipo para el inventario
+type ShoeSize = {
+  talla: number;
+  stock: number;
+};
+
 type Shoe = {
   id: string;
   nombre: string;
   marca: string;
-  talla: number;
   color: string;
-  stock: number;
   precio: number;
   imageUrl: string;
+  tallas: ShoeSize[];
 };
 
 // Mock Data
 const MOCK_INVENTORY: Shoe[] = [
-  { id: "1", nombre: "Nike Air Max", marca: "Nike", talla: 42, color: "Negro", stock: 15, precio: 120, imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80" },
-  { id: "2", nombre: "Adidas Ultraboost", marca: "Adidas", talla: 40, color: "Blanco", stock: 5, precio: 180, imageUrl: "https://images.unsplash.com/photo-1518002171953-a080ee817801?w=150&q=80" },
-  { id: "3", nombre: "Puma RS-X", marca: "Puma", talla: 39, color: "Rojo/Azul", stock: 0, precio: 110, imageUrl: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=150&q=80" },
-  { id: "4", nombre: "New Balance 574", marca: "New Balance", talla: 41, color: "Gris", stock: 24, precio: 95, imageUrl: "https://images.unsplash.com/photo-1539185441755-769473a23570?w=150&q=80" },
+  { 
+    id: "1", nombre: "Nike Air Max", marca: "Nike", color: "Negro", precio: 120, 
+    imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80",
+    tallas: [{talla: 40, stock: 5}, {talla: 41, stock: 5}, {talla: 42, stock: 5}]
+  },
+  { 
+    id: "2", nombre: "Adidas Ultraboost", marca: "Adidas", color: "Blanco", precio: 180, 
+    imageUrl: "https://images.unsplash.com/photo-1518002171953-a080ee817801?w=150&q=80",
+    tallas: [{talla: 39, stock: 2}, {talla: 40, stock: 3}]
+  },
+  { 
+    id: "3", nombre: "Puma RS-X", marca: "Puma", color: "Rojo/Azul", precio: 110, 
+    imageUrl: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=150&q=80",
+    tallas: [{talla: 40, stock: 0}, {talla: 41, stock: 0}]
+  },
+  { 
+    id: "4", nombre: "New Balance 574", marca: "New Balance", color: "Gris", precio: 95, 
+    imageUrl: "https://images.unsplash.com/photo-1539185441755-769473a23570?w=150&q=80",
+    tallas: [{talla: 42, stock: 10}, {talla: 43, stock: 14}]
+  },
 ];
 
 export default function AdminDashboard() {
@@ -43,6 +63,7 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [inventory, setInventory] = useState<Shoe[]>(MOCK_INVENTORY);
   const [isClient, setIsClient] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,11 +73,10 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState({
     nombre: "",
     marca: "",
-    talla: 40,
     color: "",
-    stock: 0,
     precio: 0,
-    imageUrl: ""
+    imageUrl: "",
+    tallas: [] as ShoeSize[]
   });
 
   useEffect(() => {
@@ -67,28 +87,32 @@ export default function AdminDashboard() {
     router.push("/");
   };
 
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => 
+      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
+    );
+  };
+
   const openModal = (shoe?: Shoe) => {
     if (shoe) {
       setEditingId(shoe.id);
       setFormData({
         nombre: shoe.nombre,
         marca: shoe.marca,
-        talla: shoe.talla,
         color: shoe.color,
-        stock: shoe.stock,
         precio: shoe.precio,
-        imageUrl: shoe.imageUrl || ""
+        imageUrl: shoe.imageUrl || "",
+        tallas: [...shoe.tallas]
       });
     } else {
       setEditingId(null);
       setFormData({
         nombre: "",
         marca: "",
-        talla: 40,
         color: "",
-        stock: 0,
         precio: 0,
-        imageUrl: ""
+        imageUrl: "",
+        tallas: [{ talla: 40, stock: 0 }]
       });
     }
     setIsModalOpen(true);
@@ -101,12 +125,10 @@ export default function AdminDashboard() {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingId) {
-      // Actualizar existente
       setInventory(inventory.map(item => 
         item.id === editingId ? { ...formData, id: editingId } : item
       ));
     } else {
-      // Añadir nuevo
       const newShoe: Shoe = {
         ...formData,
         id: Date.now().toString(),
@@ -116,16 +138,38 @@ export default function AdminDashboard() {
     closeModal();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (window.confirm("¿Estás seguro de eliminar este calzado?")) {
       setInventory(inventory.filter(item => item.id !== id));
     }
+  };
+
+  const handleAddSize = () => {
+    setFormData({
+      ...formData,
+      tallas: [...formData.tallas, { talla: 41, stock: 0 }]
+    });
+  };
+
+  const handleRemoveSize = (index: number) => {
+    const newTallas = [...formData.tallas];
+    newTallas.splice(index, 1);
+    setFormData({ ...formData, tallas: newTallas });
+  };
+
+  const handleSizeChange = (index: number, field: keyof ShoeSize, value: number) => {
+    const newTallas = [...formData.tallas];
+    newTallas[index] = { ...newTallas[index], [field]: value };
+    setFormData({ ...formData, tallas: newTallas });
   };
 
   const filteredInventory = inventory.filter((item) =>
     item.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.marca.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const getTotalStock = (tallas: ShoeSize[]) => tallas.reduce((sum, t) => sum + t.stock, 0);
 
   const getStockBadge = (stock: number) => {
     if (stock === 0) return <span className={`${styles.badge} ${styles.badgeDanger}`}>Agotado</span>;
@@ -137,7 +181,6 @@ export default function AdminDashboard() {
 
   return (
     <div className={styles.adminContainer}>
-      {/* Sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
           <div className={styles.logo}>
@@ -176,7 +219,6 @@ export default function AdminDashboard() {
         </nav>
       </aside>
 
-      {/* Main Content */}
       <main className={styles.mainContent}>
         {activeTab === "inventory" && (
           <>
@@ -198,28 +240,6 @@ export default function AdminDashboard() {
                   <span className={styles.statValue}>{inventory.length}</span>
                 </div>
               </div>
-              <div className={styles.statCard}>
-                <div className={`${styles.statIcon} ${styles.badgeWarning}`}>
-                  <AlertCircle size={24} />
-                </div>
-                <div className={styles.statInfo}>
-                  <span className={styles.statLabel}>Stock Bajo</span>
-                  <span className={styles.statValue}>
-                    {inventory.filter(i => i.stock > 0 && i.stock < 10).length}
-                  </span>
-                </div>
-              </div>
-              <div className={styles.statCard}>
-                <div className={`${styles.statIcon} ${styles.badgeDanger}`}>
-                  <AlertCircle size={24} />
-                </div>
-                <div className={styles.statInfo}>
-                  <span className={styles.statLabel}>Agotados</span>
-                  <span className={styles.statValue}>
-                    {inventory.filter(i => i.stock === 0).length}
-                  </span>
-                </div>
-              </div>
             </div>
 
             <div className={styles.tableContainer}>
@@ -238,51 +258,96 @@ export default function AdminDashboard() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: '40px' }}></th>
                     <th>Producto</th>
                     <th>Marca</th>
-                    <th>Talla</th>
                     <th>Color</th>
                     <th>Precio</th>
-                    <th>Stock</th>
+                    <th>Stock Total</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredInventory.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <div className={styles.productCell}>
-                          <img 
-                            src={item.imageUrl || "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80"} 
-                            alt={item.nombre} 
-                            className={styles.shoeImage}
-                            onError={(e) => {
-                              // Fallback image if URL fails
-                              (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
-                            }}
-                          />
-                          <span>{item.nombre}</span>
-                        </div>
-                      </td>
-                      <td>{item.marca}</td>
-                      <td>{item.talla}</td>
-                      <td>{item.color}</td>
-                      <td>${item.precio}</td>
-                      <td>{item.stock}</td>
-                      <td>{getStockBadge(item.stock)}</td>
-                      <td>
-                        <div className={styles.actionCell}>
-                          <button className={styles.actionBtn} title="Editar" onClick={() => openModal(item)}>
-                            <Edit2 size={16} />
-                          </button>
-                          <button className={styles.actionBtn} title="Eliminar" onClick={() => handleDelete(item.id)}>
-                            <Trash2 size={16} color="var(--danger)" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredInventory.map((item) => {
+                    const isExpanded = expandedRows.includes(item.id);
+                    const totalStock = getTotalStock(item.tallas);
+                    
+                    return (
+                      <React.Fragment key={item.id}>
+                        <tr className={styles.mainRow} onClick={() => toggleRow(item.id)}>
+                          <td>
+                            <ChevronDown 
+                              size={18} 
+                              className={`${styles.expandIcon} ${isExpanded ? styles.open : ""}`} 
+                            />
+                          </td>
+                          <td>
+                            <div className={styles.productCell}>
+                              <img 
+                                src={item.imageUrl || "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80"} 
+                                alt={item.nombre} 
+                                className={styles.shoeImage}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
+                                }}
+                              />
+                              <span>{item.nombre}</span>
+                            </div>
+                          </td>
+                          <td>{item.marca}</td>
+                          <td>{item.color}</td>
+                          <td>${item.precio}</td>
+                          <td>{totalStock}</td>
+                          <td>{getStockBadge(totalStock)}</td>
+                          <td>
+                            <div className={styles.actionCell}>
+                              <button 
+                                className={styles.actionBtn} 
+                                title="Editar" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openModal(item);
+                                }}
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                className={styles.actionBtn} 
+                                title="Eliminar" 
+                                onClick={(e) => handleDelete(item.id, e)}
+                              >
+                                <Trash2 size={16} color="var(--danger)" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className={styles.expandedContent}>
+                            <td colSpan={8}>
+                              <div className={styles.expandedInner}>
+                                <h4>Tallas Disponibles</h4>
+                                <div className={styles.sizesGrid}>
+                                  {item.tallas.length > 0 ? (
+                                    item.tallas.map((t, idx) => (
+                                      <div key={idx} className={styles.sizeCard}>
+                                        <span className={styles.sizeNumber}>{t.talla}</span>
+                                        <span className={styles.sizeStock}>
+                                          {t.stock} {t.stock === 1 ? 'par' : 'pares'}
+                                        </span>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <span style={{ color: 'var(--text-secondary)' }}>No hay tallas registradas.</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                   {filteredInventory.length === 0 && (
                     <tr>
                       <td colSpan={8} style={{ textAlign: "center", padding: "3rem" }}>
@@ -347,18 +412,17 @@ export default function AdminDashboard() {
                   )}
                 </div>
 
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Nombre del Modelo *</label>
-                  <input 
-                    type="text" 
-                    className="input" 
-                    required
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                  />
-                </div>
-
                 <div className={styles.formRow}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Nombre del Modelo *</label>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      required
+                      value={formData.nombre}
+                      onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                    />
+                  </div>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Marca *</label>
                     <input 
@@ -367,18 +431,6 @@ export default function AdminDashboard() {
                       required
                       value={formData.marca}
                       onChange={(e) => setFormData({...formData, marca: e.target.value})}
-                    />
-                  </div>
-                  <div className={styles.formGroup}>
-                    <label className={styles.label}>Talla *</label>
-                    <input 
-                      type="number" 
-                      className="input" 
-                      required
-                      min="1"
-                      step="0.5"
-                      value={formData.talla}
-                      onChange={(e) => setFormData({...formData, talla: Number(e.target.value)})}
                     />
                   </div>
                 </div>
@@ -408,17 +460,53 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Cantidad en Stock *</label>
-                  <input 
-                    type="number" 
-                    className="input" 
-                    required
-                    min="0"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({...formData, stock: Number(e.target.value)})}
-                  />
+                {/* Tallas y Stock Dynamic Form */}
+                <div className={styles.sizesFormContainer}>
+                  <div className={styles.sizesHeader}>
+                    <h4>Inventario por Tallas</h4>
+                  </div>
+                  
+                  {formData.tallas.map((t, idx) => (
+                    <div key={idx} className={styles.sizeInputRow}>
+                      <div className={styles.formGroup} style={{ flex: 1 }}>
+                        <label className={styles.label} style={{ fontSize: '0.75rem' }}>Talla</label>
+                        <input 
+                          type="number" 
+                          className="input" 
+                          required
+                          step="0.5"
+                          value={t.talla}
+                          onChange={(e) => handleSizeChange(idx, 'talla', Number(e.target.value))}
+                        />
+                      </div>
+                      <div className={styles.formGroup} style={{ flex: 1 }}>
+                        <label className={styles.label} style={{ fontSize: '0.75rem' }}>Stock</label>
+                        <input 
+                          type="number" 
+                          className="input" 
+                          required
+                          min="0"
+                          value={t.stock}
+                          onChange={(e) => handleSizeChange(idx, 'stock', Number(e.target.value))}
+                        />
+                      </div>
+                      <button 
+                        type="button" 
+                        className={styles.removeSizeBtn} 
+                        onClick={() => handleRemoveSize(idx)}
+                        style={{ marginTop: '1.25rem' }}
+                        title="Eliminar talla"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
+                  
+                  <button type="button" className={styles.addSizeBtn} onClick={handleAddSize}>
+                    <Plus size={16} /> Añadir otra talla
+                  </button>
                 </div>
+
               </div>
 
               <div className={styles.modalFooter}>
