@@ -7,20 +7,31 @@ import {
   LogOut,
   Search,
 } from "lucide-react";
-import styles from "../admin/page.module.css"; // Reuse admin styles for consistency
+import styles from "../admin/page.module.css";
+
+type Shoe = {
+  id: string;
+  nombre: string;
+  marca: string;
+  talla: number;
+  color: string;
+  stock: number;
+  precio: number;
+  imageUrl: string;
+};
 
 // Mock Data
-const MOCK_INVENTORY = [
-  { id: "1", nombre: "Nike Air Max", marca: "Nike", talla: 42, color: "Negro", stock: 15, precio: 120 },
-  { id: "2", nombre: "Adidas Ultraboost", marca: "Adidas", talla: 40, color: "Blanco", stock: 5, precio: 180 },
-  { id: "3", nombre: "Puma RS-X", marca: "Puma", talla: 39, color: "Rojo/Azul", stock: 0, precio: 110 },
-  { id: "4", nombre: "New Balance 574", marca: "New Balance", talla: 41, color: "Gris", stock: 24, precio: 95 },
+const MOCK_INVENTORY: Shoe[] = [
+  { id: "1", nombre: "Nike Air Max", marca: "Nike", talla: 42, color: "Negro", stock: 15, precio: 120, imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80" },
+  { id: "2", nombre: "Adidas Ultraboost", marca: "Adidas", talla: 40, color: "Blanco", stock: 5, precio: 180, imageUrl: "https://images.unsplash.com/photo-1518002171953-a080ee817801?w=150&q=80" },
+  { id: "3", nombre: "Puma RS-X", marca: "Puma", talla: 39, color: "Rojo/Azul", stock: 0, precio: 110, imageUrl: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=150&q=80" },
+  { id: "4", nombre: "New Balance 574", marca: "New Balance", talla: 41, color: "Gris", stock: 24, precio: 95, imageUrl: "https://images.unsplash.com/photo-1539185441755-769473a23570?w=150&q=80" },
 ];
 
 export default function UserInventory() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [inventory, setInventory] = useState(MOCK_INVENTORY);
+  const [inventory, setInventory] = useState<Shoe[]>(MOCK_INVENTORY);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -46,7 +57,6 @@ export default function UserInventory() {
 
   return (
     <div className={styles.adminContainer}>
-      {/* Top Navbar instead of sidebar for users */}
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
         <header style={{ 
           display: 'flex', 
@@ -69,7 +79,6 @@ export default function UserInventory() {
           </button>
         </header>
 
-        {/* Main Content */}
         <main className={styles.mainContent} style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
           <header className={styles.header}>
             <h1 className={styles.title}>Consulta de Inventario</h1>
@@ -91,7 +100,7 @@ export default function UserInventory() {
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
+                  <th>Producto</th>
                   <th>Marca</th>
                   <th>Talla</th>
                   <th>Color</th>
@@ -103,7 +112,19 @@ export default function UserInventory() {
               <tbody>
                 {filteredInventory.map((item) => (
                   <tr key={item.id}>
-                    <td style={{ fontWeight: 500 }}>{item.nombre}</td>
+                    <td>
+                      <div className={styles.productCell}>
+                        <img 
+                          src={item.imageUrl || "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80"} 
+                          alt={item.nombre} 
+                          className={styles.shoeImage}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
+                          }}
+                        />
+                        <span>{item.nombre}</span>
+                      </div>
+                    </td>
                     <td>{item.marca}</td>
                     <td>{item.talla}</td>
                     <td>{item.color}</td>
