@@ -321,13 +321,21 @@ export default function AdminDashboard() {
             <form onSubmit={handleSave}>
               <div className={styles.modalBody}>
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>URL de la Imagen</label>
+                  <label className={styles.label}>Imagen del Calzado</label>
                   <input 
-                    type="url" 
+                    type="file" 
+                    accept="image/*"
                     className="input" 
-                    placeholder="https://ejemplo.com/imagen.jpg"
-                    value={formData.imageUrl}
-                    onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setFormData({...formData, imageUrl: reader.result as string});
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
                   />
                   {formData.imageUrl && (
                     <img 
