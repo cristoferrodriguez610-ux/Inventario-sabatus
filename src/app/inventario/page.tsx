@@ -14,6 +14,7 @@ type ShoeSize = {
 
 type Shoe = {
   id: string;
+  codigo: string;
   nombre: string;
   marca: string;
   color: string;
@@ -60,8 +61,9 @@ export default function InventoryDashboard() {
   };
 
   const filteredInventory = inventory.filter((item) =>
-    item.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.marca.toLowerCase().includes(searchQuery.toLowerCase())
+    item.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.marca?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getTotalStock = (tallas: ShoeSize[]) => tallas.reduce((sum, t) => sum + t.stock, 0);
@@ -156,7 +158,10 @@ export default function InventoryDashboard() {
                                   (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
                                 }}
                               />
-                              <span>{item.nombre}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 'bold' }}>{item.codigo}</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.marca} {item.nombre}</span>
+                              </div>
                             </div>
                           </td>
                           <td>{item.color}</td>

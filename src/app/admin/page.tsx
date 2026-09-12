@@ -31,7 +31,8 @@ type User = {
 };
 
 type Shoe = {
-  id: string;
+  id: string; // We'll use codigo as the unique ID for React keys
+  codigo: string;
   nombre: string;
   marca: string;
   color: string;
@@ -64,6 +65,7 @@ export default function AdminDashboard() {
   
   // Form State
   const [formData, setFormData] = useState({
+    codigo: "",
     nombre: "",
     marca: "",
     color: "",
@@ -131,18 +133,20 @@ export default function AdminDashboard() {
     if (shoe) {
       setEditingId(shoe.id);
       setFormData({
-        nombre: shoe.nombre,
-        marca: shoe.marca,
-        color: shoe.color,
+        codigo: shoe.codigo || shoe.id,
+        nombre: shoe.nombre || "",
+        marca: shoe.marca || "",
+        color: shoe.color || "",
         precioCompra: shoe.precioCompra || 0,
         precioRevendedor: shoe.precioRevendedor || 0,
-        precio: shoe.precio,
+        precio: shoe.precio || 0,
         imageUrl: shoe.imageUrl || "",
         tallas: [...shoe.tallas]
       });
     } else {
       setEditingId(null);
       setFormData({
+        codigo: "",
         nombre: "",
         marca: "",
         color: "",
@@ -166,7 +170,7 @@ export default function AdminDashboard() {
     try {
       const payload = {
         ...formData,
-        id: editingId || formData.nombre, // use nombre as ID for new items (col A)
+        id: editingId || formData.codigo, // use codigo as ID for new items
       };
 
       const res = await fetch("/api/inventory", {
@@ -359,8 +363,9 @@ export default function AdminDashboard() {
   // HELPERS & RENDER
   // ----------------------------------------------------
   const filteredInventory = inventory.filter((item) =>
-    item.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.marca.toLowerCase().includes(searchQuery.toLowerCase())
+    item.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.marca?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getTotalStock = (tallas: ShoeSize[]) => tallas.reduce((sum, t) => sum + t.stock, 0);
@@ -490,7 +495,10 @@ export default function AdminDashboard() {
                                   (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
                                 }}
                               />
-                              <span>{item.nombre}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 'bold' }}>{item.codigo}</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.marca} {item.nombre}</span>
+                              </div>
                             </div>
                           </td>
                           <td>{item.color}</td>
@@ -695,15 +703,40 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Código / Marca / Nombre *</label>
+                  <label className={styles.label}>Código del Calzado *</label>
                   <input 
                     type="text" 
                     className="input" 
                     required
-                    placeholder="Ej. NB-1906R-NEG"
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                    placeholder="Ej. JOR-R4-NG"
+                    value={formData.codigo}
+                    onChange={(e) => setFormData({...formData, codigo: e.target.value.toUpperCase()})}
                   />
+                </div>
+
+                <div className={styles.formRow}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Marca *</label>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      required
+                      placeholder="Ej. Jordan"
+                      value={formData.marca}
+                      onChange={(e) => setFormData({...formData, marca: e.target.value})}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Nombre Normal *</label>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      required
+                      placeholder="Ej. Retro 4 Negro"
+                      value={formData.nombre}
+                      onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                    />
+                  </div>
                 </div>
 
                 <div className={styles.formGroup}>
@@ -711,6 +744,7 @@ export default function AdminDashboard() {
                   <input 
                     type="text" 
                     className="input" 
+                    placeholder="Opcional"
                     value={formData.color}
                     onChange={(e) => setFormData({...formData, color: e.target.value})}
                   />

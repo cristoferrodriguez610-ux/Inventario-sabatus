@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getGoogleSheets } from "@/lib/google-sheets";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
-const RANGE = "Inventario!A2:P";
+const RANGE = "Inventario!A2:R"; // Expanded to R to include Nombre (Q) and Marca (R)
 
 // Helper to map sizes to array indices (35 to 44 -> 1 to 10)
 const SIZES = [35, 36, 37, 38, 39, 40, 41, 42, 43, 44];
@@ -21,12 +21,13 @@ export async function GET() {
       const tallas = SIZES.map((talla, idx) => ({
         talla,
         stock: Number(row[idx + 1]) || 0,
-      })).filter(t => t.stock >= 0); // Keep all sizes for the form, or filter if stock > 0. Let's keep all.
+      })).filter(t => t.stock >= 0);
 
       return {
         id: row[0] || "",
-        nombre: row[0] || "",
-        marca: row[0]?.split("-")[0] || "", // Basic guess if it's NB-1906R
+        codigo: row[0] || "",
+        nombre: row[16] || row[0] || "", // Fallback to code if nombre is empty
+        marca: row[17] || "",
         precioCompra: Number(row[11]) || 0,
         precioRevendedor: Number(row[12]) || 0,
         precio: Number(row[13]) || 0, // Venta
@@ -34,7 +35,7 @@ export async function GET() {
         imageUrl: row[15] || "",
         tallas,
       };
-    }).filter(item => item.id !== ""); // Filter out empty rows
+    }).filter(item => item.id !== "" && item.id.toLowerCase() !== "marcas"); // Filter out empty rows and header
 
     return NextResponse.json(inventory);
   } catch (error) {
@@ -55,18 +56,20 @@ export async function POST(request: Request) {
     });
 
     const newRow = [
-      body.nombre, // Col A
+      body.codigo || body.id, // Col A
       ...sizeStocks, // Col B to K
       body.precioCompra || 0, // Col L
       body.precioRevendedor || 0, // Col M
       body.precio || 0, // Col N
       body.color || "", // Col O
       body.imageUrl || "", // Col P
+      body.nombre || "", // Col Q
+      body.marca || "", // Col R
     ];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: "Inventario!A:P",
+      range: "Inventario!A:R",
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [newRow],
@@ -106,18 +109,20 @@ export async function PUT(request: Request) {
     });
 
     const updatedRow = [
-      body.nombre, // We update the ID/Nombre as well if they changed it
+      body.codigo || body.id, // Col A
       ...sizeStocks,
       body.precioCompra || 0,
       body.precioRevendedor || 0,
       body.precio || 0,
       body.color || "",
       body.imageUrl || "",
+      body.nombre || "", // Col Q
+      body.marca || "", // Col R
     ];
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `Inventario!A${actualRowNumber}:P${actualRowNumber}`,
+      range: `Inventario!A${actualRowNumber}:R${actualRowNumber}`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [updatedRow],
