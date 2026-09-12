@@ -35,46 +35,24 @@ type Shoe = {
   nombre: string;
   marca: string;
   color: string;
+  precioCompra: number;
+  precioRevendedor: number;
   precio: number;
   imageUrl: string;
   tallas: ShoeSize[];
 };
 
-// Mock Data
-const MOCK_INVENTORY: Shoe[] = [
-  { 
-    id: "1", nombre: "Nike Air Max", marca: "Nike", color: "Negro", precio: 120, 
-    imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80",
-    tallas: [{talla: 40, stock: 5}, {talla: 41, stock: 5}, {talla: 42, stock: 5}]
-  },
-  { 
-    id: "2", nombre: "Adidas Ultraboost", marca: "Adidas", color: "Blanco", precio: 180, 
-    imageUrl: "https://images.unsplash.com/photo-1518002171953-a080ee817801?w=150&q=80",
-    tallas: [{talla: 39, stock: 2}, {talla: 40, stock: 3}]
-  },
-  { 
-    id: "3", nombre: "Puma RS-X", marca: "Puma", color: "Rojo/Azul", precio: 110, 
-    imageUrl: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=150&q=80",
-    tallas: [{talla: 40, stock: 0}, {talla: 41, stock: 0}]
-  },
-  { 
-    id: "4", nombre: "New Balance 574", marca: "New Balance", color: "Gris", precio: 95, 
-    imageUrl: "https://images.unsplash.com/photo-1539185441755-769473a23570?w=150&q=80",
-    tallas: [{talla: 42, stock: 10}, {talla: 43, stock: 14}]
-  },
-];
-
-const MOCK_USERS: User[] = [
-  { id: "1", nombre: "Administrador Principal", password: "admin", rol: "Admin" },
-  { id: "2", nombre: "Vendedor 1", password: "vend1", rol: "Usuario" },
-];
-
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("inventory");
   const [searchQuery, setSearchQuery] = useState("");
-  const [inventory, setInventory] = useState<Shoe[]>(MOCK_INVENTORY);
+  
+  const [inventory, setInventory] = useState<Shoe[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  
   const [isClient, setIsClient] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editingStockId, setEditingStockId] = useState<{shoeId: string, sizeIdx: number} | null>(null);
   const [tempStockVal, setTempStockVal] = useState<number>(0);
@@ -82,19 +60,21 @@ export default function AdminDashboard() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Form State
   const [formData, setFormData] = useState({
     nombre: "",
     marca: "",
     color: "",
+    precioCompra: 0,
+    precioRevendedor: 0,
     precio: 0,
     imageUrl: "",
     tallas: [] as ShoeSize[]
   });
 
   // User Management State
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [userFormData, setUserFormData] = useState({
@@ -107,23 +87,32 @@ export default function AdminDashboard() {
     return Math.random().toString(36).slice(-6).toUpperCase();
   };
 
+  const fetchData = async () => {
+    setIsLoadingData(true);
+    try {
+      const [invRes, usersRes] = await Promise.all([
+        fetch("/api/inventory"),
+        fetch("/api/users")
+      ]);
+      if (invRes.ok) {
+        const invData = await invRes.json();
+        setInventory(invData);
+      }
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        setUsers(usersData);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
   useEffect(() => {
     setIsClient(true);
-    // Load users from localStorage
-    const savedUsers = localStorage.getItem("sabatus_users");
-    if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
-    } else {
-      localStorage.setItem("sabatus_users", JSON.stringify(MOCK_USERS));
-    }
+    fetchData();
   }, []);
-
-  // Update localStorage when users change
-  useEffect(() => {
-    if (isClient) {
-      localStorage.setItem("sabatus_users", JSON.stringify(users));
-    }
-  }, [users, isClient]);
 
   const handleLogout = () => {
     router.push("/");
@@ -135,6 +124,9 @@ export default function AdminDashboard() {
     );
   };
 
+  // ----------------------------------------------------
+  // INVENTORY METHODS
+  // ----------------------------------------------------
   const openModal = (shoe?: Shoe) => {
     if (shoe) {
       setEditingId(shoe.id);
@@ -142,6 +134,8 @@ export default function AdminDashboard() {
         nombre: shoe.nombre,
         marca: shoe.marca,
         color: shoe.color,
+        precioCompra: shoe.precioCompra || 0,
+        precioRevendedor: shoe.precioRevendedor || 0,
         precio: shoe.precio,
         imageUrl: shoe.imageUrl || "",
         tallas: [...shoe.tallas]
@@ -152,6 +146,8 @@ export default function AdminDashboard() {
         nombre: "",
         marca: "",
         color: "",
+        precioCompra: 0,
+        precioRevendedor: 0,
         precio: 0,
         imageUrl: "",
         tallas: [{ talla: 40, stock: 0 }]
@@ -164,63 +160,49 @@ export default function AdminDashboard() {
     setIsModalOpen(false);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingId) {
-      setInventory(inventory.map(item => 
-        item.id === editingId ? { ...formData, id: editingId } : item
-      ));
-    } else {
-      const newShoe: Shoe = {
+    setIsSaving(true);
+    try {
+      const payload = {
         ...formData,
-        id: Date.now().toString(),
+        id: editingId || formData.nombre, // use nombre as ID for new items (col A)
       };
-      setInventory([...inventory, newShoe]);
+
+      const res = await fetch("/api/inventory", {
+        method: editingId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        await fetchData(); // Refresh data from server
+        closeModal();
+      } else {
+        alert("Error al guardar el calzado.");
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+    } finally {
+      setIsSaving(false);
     }
-    closeModal();
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm("¿Estás seguro de eliminar este calzado?")) {
-      setInventory(inventory.filter(item => item.id !== id));
-    }
-  };
-
-  const openUserModal = (user?: User) => {
-    if (user) {
-      setEditingUserId(user.id);
-      setUserFormData({
-        nombre: user.nombre,
-        password: user.password,
-        rol: user.rol
-      });
-    } else {
-      setEditingUserId(null);
-      setUserFormData({
-        nombre: "",
-        password: generatePassword(),
-        rol: "Usuario"
-      });
-    }
-    setIsUserModalOpen(true);
-  };
-
-  const closeUserModal = () => setIsUserModalOpen(false);
-
-  const handleSaveUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingUserId) {
-      setUsers(users.map(u => u.id === editingUserId ? { ...userFormData, id: editingUserId } : u));
-    } else {
-      setUsers([...users, { ...userFormData, id: Date.now().toString() }]);
-    }
-    closeUserModal();
-  };
-
-  const handleDeleteUser = (id: string) => {
-    if (window.confirm("¿Estás seguro de eliminar este usuario?")) {
-      setUsers(users.filter(u => u.id !== id));
+      try {
+        const res = await fetch(`/api/inventory?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          await fetchData();
+        } else {
+          alert("Error al eliminar el calzado.");
+        }
+      } catch (error) {
+        console.error("Delete error:", error);
+      }
     }
   };
 
@@ -243,29 +225,139 @@ export default function AdminDashboard() {
     setFormData({ ...formData, tallas: newTallas });
   };
 
-  const handleQuickStockChange = (shoeId: string, sizeIdx: number, delta: number) => {
+  // Inline Stock Edit
+  const handleQuickStockChange = async (shoe: Shoe, sizeIdx: number, delta: number) => {
+    const newStock = Math.max(0, shoe.tallas[sizeIdx].stock + delta);
+    
+    // Optimistic UI update
     setInventory(inventory.map(item => {
-      if (item.id === shoeId) {
+      if (item.id === shoe.id) {
         const newTallas = [...item.tallas];
-        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: Math.max(0, newTallas[sizeIdx].stock + delta) };
+        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: newStock };
         return { ...item, tallas: newTallas };
       }
       return item;
     }));
+
+    // Save to server
+    const payload = { ...shoe };
+    payload.tallas[sizeIdx].stock = newStock;
+
+    try {
+      await fetch("/api/inventory", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.error("Inline save error:", error);
+      fetchData(); // Revert on error
+    }
   };
 
-  const saveInlineStock = (shoeId: string, sizeIdx: number) => {
+  const saveInlineStock = async (shoe: Shoe, sizeIdx: number) => {
+    const newStock = Math.max(0, tempStockVal);
+    
+    // Optimistic UI update
     setInventory(inventory.map(item => {
-      if (item.id === shoeId) {
+      if (item.id === shoe.id) {
         const newTallas = [...item.tallas];
-        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: Math.max(0, tempStockVal) };
+        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: newStock };
         return { ...item, tallas: newTallas };
       }
       return item;
     }));
+    
     setEditingStockId(null);
+
+    // Save to server
+    const payload = { ...shoe };
+    payload.tallas[sizeIdx].stock = newStock;
+
+    try {
+      await fetch("/api/inventory", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.error("Inline save error:", error);
+      fetchData(); // Revert on error
+    }
   };
 
+  // ----------------------------------------------------
+  // USERS METHODS
+  // ----------------------------------------------------
+  const openUserModal = (user?: User) => {
+    if (user) {
+      setEditingUserId(user.id);
+      setUserFormData({
+        nombre: user.nombre,
+        password: user.password,
+        rol: user.rol
+      });
+    } else {
+      setEditingUserId(null);
+      setUserFormData({
+        nombre: "",
+        password: generatePassword(),
+        rol: "Usuario"
+      });
+    }
+    setIsUserModalOpen(true);
+  };
+
+  const closeUserModal = () => setIsUserModalOpen(false);
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const payload = {
+        ...userFormData,
+        id: editingUserId || Date.now().toString(),
+      };
+
+      const res = await fetch("/api/users", {
+        method: editingUserId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        await fetchData();
+        closeUserModal();
+      } else {
+        alert("Error al guardar el usuario.");
+      }
+    } catch (error) {
+      console.error("Save user error:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (window.confirm("¿Estás seguro de eliminar este usuario?")) {
+      try {
+        const res = await fetch(`/api/users?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          await fetchData();
+        } else {
+          alert("Error al eliminar el usuario.");
+        }
+      } catch (error) {
+        console.error("Delete user error:", error);
+      }
+    }
+  };
+
+  // ----------------------------------------------------
+  // HELPERS & RENDER
+  // ----------------------------------------------------
   const filteredInventory = inventory.filter((item) =>
     item.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.marca.toLowerCase().includes(searchQuery.toLowerCase())
@@ -322,7 +414,11 @@ export default function AdminDashboard() {
       </aside>
 
       <main className={styles.mainContent}>
-        {activeTab === "inventory" && (
+        {isLoadingData ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-secondary)' }}>
+            <span className="animate-spin" style={{ fontSize: '2rem', marginRight: '1rem' }}>⟳</span> Cargando datos desde Google Sheets...
+          </div>
+        ) : activeTab === "inventory" ? (
           <>
             <header className={styles.header}>
               <h1 className={styles.title}>Gestión de Inventario</h1>
@@ -361,10 +457,10 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     <th style={{ width: '40px' }}></th>
-                    <th>Producto</th>
-                    <th>Marca</th>
+                    <th>Producto (Código)</th>
                     <th>Color</th>
-                    <th>Precio</th>
+                    <th>P. Compra</th>
+                    <th>P. Venta</th>
                     <th>Stock Total</th>
                     <th>Estado</th>
                     <th>Acciones</th>
@@ -397,8 +493,8 @@ export default function AdminDashboard() {
                               <span>{item.nombre}</span>
                             </div>
                           </td>
-                          <td>{item.marca}</td>
                           <td>{item.color}</td>
+                          <td>${item.precioCompra}</td>
                           <td>${item.precio}</td>
                           <td>{totalStock}</td>
                           <td>{getStockBadge(totalStock)}</td>
@@ -440,7 +536,7 @@ export default function AdminDashboard() {
                                         <div className={styles.sizeStockContainer}>
                                           <button 
                                             className={styles.stockBtn} 
-                                            onClick={(e) => { e.stopPropagation(); handleQuickStockChange(item.id, idx, -1); }}
+                                            onClick={(e) => { e.stopPropagation(); handleQuickStockChange(item, idx, -1); }}
                                           >-</button>
                                           
                                           {isEditingThis ? (
@@ -450,9 +546,9 @@ export default function AdminDashboard() {
                                               value={tempStockVal}
                                               autoFocus
                                               onChange={(e) => setTempStockVal(Number(e.target.value))}
-                                              onBlur={() => saveInlineStock(item.id, idx)}
+                                              onBlur={() => saveInlineStock(item, idx)}
                                               onKeyDown={(e) => {
-                                                if (e.key === 'Enter') saveInlineStock(item.id, idx);
+                                                if (e.key === 'Enter') saveInlineStock(item, idx);
                                                 if (e.key === 'Escape') setEditingStockId(null);
                                               }}
                                             />
@@ -472,7 +568,7 @@ export default function AdminDashboard() {
 
                                           <button 
                                             className={styles.stockBtn}
-                                            onClick={(e) => { e.stopPropagation(); handleQuickStockChange(item.id, idx, 1); }}
+                                            onClick={(e) => { e.stopPropagation(); handleQuickStockChange(item, idx, 1); }}
                                           >+</button>
                                         </div>
                                       </div>
@@ -499,9 +595,7 @@ export default function AdminDashboard() {
               </table>
             </div>
           </>
-        )}
-
-        {activeTab === "users" && (
+        ) : activeTab === "users" ? (
           <>
             <header className={styles.header}>
               <h1 className={styles.title}>Gestión de Usuarios</h1>
@@ -554,16 +648,16 @@ export default function AdminDashboard() {
               </table>
             </div>
           </>
-        )}
+        ) : null}
       </main>
 
-      {/* Form Modal */}
+      {/* Shoe Form Modal */}
       {isModalOpen && (
         <div className={styles.modalOverlay}>
           <div className={`${styles.modalContent} animate-fade-in`}>
             <div className={styles.modalHeader}>
               <h2 className={styles.modalTitle}>{editingId ? "Editar Calzado" : "Añadir Nuevo Calzado"}</h2>
-              <button className={styles.closeBtn} onClick={closeModal}>
+              <button className={styles.closeBtn} onClick={closeModal} disabled={isSaving}>
                 <X size={20} />
               </button>
             </div>
@@ -571,7 +665,7 @@ export default function AdminDashboard() {
             <form onSubmit={handleSave}>
               <div className={styles.modalBody}>
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Imagen del Calzado</label>
+                  <label className={styles.label}>Imagen del Calzado (Se convierte a Base64 temporalmente)</label>
                   <input 
                     type="file" 
                     accept="image/*"
@@ -587,6 +681,9 @@ export default function AdminDashboard() {
                       }
                     }}
                   />
+                  {formData.imageUrl && formData.imageUrl.startsWith("data:") && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--warning)' }}>Nota: Para Google Sheets es mejor usar URLs públicas (http...) en lugar de subir archivos.</span>
+                  )}
                   {formData.imageUrl && (
                     <img 
                       src={formData.imageUrl} 
@@ -597,42 +694,53 @@ export default function AdminDashboard() {
                   )}
                 </div>
 
-                <div className={styles.formRow}>
-                  <div className={styles.formGroup}>
-                    <label className={styles.label}>Nombre del Modelo *</label>
-                    <input 
-                      type="text" 
-                      className="input" 
-                      required
-                      value={formData.nombre}
-                      onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                    />
-                  </div>
-                  <div className={styles.formGroup}>
-                    <label className={styles.label}>Marca *</label>
-                    <input 
-                      type="text" 
-                      className="input" 
-                      required
-                      value={formData.marca}
-                      onChange={(e) => setFormData({...formData, marca: e.target.value})}
-                    />
-                  </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Código / Marca / Nombre *</label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    required
+                    placeholder="Ej. NB-1906R-NEG"
+                    value={formData.nombre}
+                    onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Color</label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    value={formData.color}
+                    onChange={(e) => setFormData({...formData, color: e.target.value})}
+                  />
                 </div>
 
                 <div className={styles.formRow}>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>Color *</label>
+                    <label className={styles.label}>Precio Compra ($)</label>
                     <input 
-                      type="text" 
+                      type="number" 
                       className="input" 
-                      required
-                      value={formData.color}
-                      onChange={(e) => setFormData({...formData, color: e.target.value})}
+                      min="0"
+                      step="0.01"
+                      value={formData.precioCompra}
+                      onChange={(e) => setFormData({...formData, precioCompra: Number(e.target.value)})}
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>Precio ($) *</label>
+                    <label className={styles.label}>Precio Revendedor ($)</label>
+                    <input 
+                      type="number" 
+                      className="input" 
+                      min="0"
+                      step="0.01"
+                      value={formData.precioRevendedor}
+                      onChange={(e) => setFormData({...formData, precioRevendedor: Number(e.target.value)})}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Precio Público ($) *</label>
                     <input 
                       type="number" 
                       className="input" 
@@ -655,14 +763,15 @@ export default function AdminDashboard() {
                     <div key={idx} className={styles.sizeInputRow}>
                       <div className={styles.formGroup} style={{ flex: 1 }}>
                         <label className={styles.label} style={{ fontSize: '0.75rem' }}>Talla</label>
-                        <input 
-                          type="number" 
-                          className="input" 
-                          required
-                          step="0.5"
+                        <select 
+                          className="input"
                           value={t.talla}
                           onChange={(e) => handleSizeChange(idx, 'talla', Number(e.target.value))}
-                        />
+                        >
+                          {[35, 36, 37, 38, 39, 40, 41, 42, 43, 44].map(sz => (
+                            <option key={sz} value={sz}>{sz}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className={styles.formGroup} style={{ flex: 1 }}>
                         <label className={styles.label} style={{ fontSize: '0.75rem' }}>Stock</label>
@@ -695,11 +804,11 @@ export default function AdminDashboard() {
               </div>
 
               <div className={styles.modalFooter}>
-                <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={isSaving}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingId ? "Guardar Cambios" : "Añadir Calzado"}
+                <button type="submit" className="btn btn-primary" disabled={isSaving}>
+                  {isSaving ? "Guardando..." : (editingId ? "Guardar Cambios" : "Añadir Calzado")}
                 </button>
               </div>
             </form>
@@ -713,7 +822,7 @@ export default function AdminDashboard() {
           <div className={`${styles.modalContent} animate-fade-in`} style={{ maxWidth: '400px' }}>
             <div className={styles.modalHeader}>
               <h2 className={styles.modalTitle}>{editingUserId ? "Editar Usuario" : "Añadir Nuevo Usuario"}</h2>
-              <button className={styles.closeBtn} onClick={closeUserModal}>
+              <button className={styles.closeBtn} onClick={closeUserModal} disabled={isSaving}>
                 <X size={20} />
               </button>
             </div>
@@ -765,11 +874,11 @@ export default function AdminDashboard() {
               </div>
 
               <div className={styles.modalFooter}>
-                <button type="button" className="btn btn-secondary" onClick={closeUserModal}>
+                <button type="button" className="btn btn-secondary" onClick={closeUserModal} disabled={isSaving}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingUserId ? "Guardar Cambios" : "Añadir Usuario"}
+                <button type="submit" className="btn btn-primary" disabled={isSaving}>
+                  {isSaving ? "Guardando..." : (editingUserId ? "Guardar Cambios" : "Añadir Usuario")}
                 </button>
               </div>
             </form>

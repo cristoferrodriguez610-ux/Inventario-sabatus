@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import React from "react";
-import {
-  Package,
-  LogOut,
-  Search,
-  ChevronDown
-} from "lucide-react";
-import styles from "../admin/page.module.css";
+import { Package, Search, LogOut, ChevronDown } from "lucide-react";
+import styles from "./page.module.css";
+// We reuse the admin CSS modules to maintain the exact same look, just hiding admin features
+import adminStyles from "../admin/page.module.css";
 
 type ShoeSize = {
   talla: number;
@@ -26,39 +22,31 @@ type Shoe = {
   tallas: ShoeSize[];
 };
 
-// Mock Data
-const MOCK_INVENTORY: Shoe[] = [
-  { 
-    id: "1", nombre: "Nike Air Max", marca: "Nike", color: "Negro", precio: 120, 
-    imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80",
-    tallas: [{talla: 40, stock: 5}, {talla: 41, stock: 5}, {talla: 42, stock: 5}]
-  },
-  { 
-    id: "2", nombre: "Adidas Ultraboost", marca: "Adidas", color: "Blanco", precio: 180, 
-    imageUrl: "https://images.unsplash.com/photo-1518002171953-a080ee817801?w=150&q=80",
-    tallas: [{talla: 39, stock: 2}, {talla: 40, stock: 3}]
-  },
-  { 
-    id: "3", nombre: "Puma RS-X", marca: "Puma", color: "Rojo/Azul", precio: 110, 
-    imageUrl: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=150&q=80",
-    tallas: [{talla: 40, stock: 0}, {talla: 41, stock: 0}]
-  },
-  { 
-    id: "4", nombre: "New Balance 574", marca: "New Balance", color: "Gris", precio: 95, 
-    imageUrl: "https://images.unsplash.com/photo-1539185441755-769473a23570?w=150&q=80",
-    tallas: [{talla: 42, stock: 10}, {talla: 43, stock: 14}]
-  },
-];
-
-export default function UserInventory() {
+export default function InventoryDashboard() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [inventory, setInventory] = useState<Shoe[]>(MOCK_INVENTORY);
+  
+  const [inventory, setInventory] = useState<Shoe[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   useEffect(() => {
     setIsClient(true);
+    const fetchInventory = async () => {
+      try {
+        const res = await fetch("/api/inventory");
+        if (res.ok) {
+          const data = await res.json();
+          setInventory(data);
+        }
+      } catch (error) {
+        console.error("Error fetching inventory:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchInventory();
   }, []);
 
   const handleLogout = () => {
@@ -71,146 +59,152 @@ export default function UserInventory() {
     );
   };
 
-  const getTotalStock = (tallas: ShoeSize[]) => tallas.reduce((sum, t) => sum + t.stock, 0);
-
   const filteredInventory = inventory.filter((item) =>
     item.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.marca.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const getTotalStock = (tallas: ShoeSize[]) => tallas.reduce((sum, t) => sum + t.stock, 0);
+
   const getStockBadge = (stock: number) => {
-    if (stock === 0) return <span className={`${styles.badge} ${styles.badgeDanger}`}>Agotado</span>;
-    if (stock < 10) return <span className={`${styles.badge} ${styles.badgeWarning}`}>Stock Bajo</span>;
-    return <span className={`${styles.badge} ${styles.badgeSuccess}`}>En Stock</span>;
+    if (stock === 0) return <span className={`${adminStyles.badge} ${adminStyles.badgeDanger}`}>Agotado</span>;
+    if (stock < 10) return <span className={`${adminStyles.badge} ${adminStyles.badgeWarning}`}>Stock Bajo</span>;
+    return <span className={`${adminStyles.badge} ${adminStyles.badgeSuccess}`}>En Stock</span>;
   };
 
   if (!isClient) return null;
 
   return (
-    <div className={styles.adminContainer}>
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
-        <header style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          padding: '1rem 2rem',
-          backgroundColor: 'var(--bg-primary)',
-          borderBottom: '1px solid var(--border-color)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 600, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
-            <div className={styles.logo}>
-              <Package size={28} />
-            </div>
-            <span>Sabatus Inventario</span>
+    <div className={adminStyles.adminContainer}>
+      <aside className={adminStyles.sidebar}>
+        <div className={adminStyles.sidebarHeader}>
+          <div className={adminStyles.logo}>
+            <Package size={28} />
           </div>
-          
-          <button className="btn btn-secondary" onClick={handleLogout} style={{ color: 'var(--text-secondary)' }}>
-            <LogOut size={18} />
-            Salir
+          <span>Sabatus</span>
+        </div>
+
+        <nav className={adminStyles.nav}>
+          <button className={`${adminStyles.navItem} ${adminStyles.active}`}>
+            <Package size={20} />
+            Inventario
           </button>
-        </header>
+          <div style={{ flex: 1 }}></div>
+          <button className={`${adminStyles.navItem} ${adminStyles.logoutBtn}`} onClick={handleLogout}>
+            <LogOut size={20} />
+            Cerrar Sesión
+          </button>
+        </nav>
+      </aside>
 
-        <main className={styles.mainContent} style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-          <header className={styles.header}>
-            <h1 className={styles.title}>Consulta de Inventario</h1>
-          </header>
+      <main className={adminStyles.mainContent}>
+        {isLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-secondary)' }}>
+            <span className="animate-spin" style={{ fontSize: '2rem', marginRight: '1rem' }}>⟳</span> Cargando inventario...
+          </div>
+        ) : (
+          <>
+            <header className={adminStyles.header}>
+              <h1 className={adminStyles.title}>Catálogo de Inventario</h1>
+            </header>
 
-          <div className={styles.tableContainer}>
-            <div className={styles.tableHeader}>
-              <div className={styles.searchBox} style={{ width: '100%', maxWidth: '400px' }}>
-                <Search className={styles.searchIcon} size={18} />
-                <input
-                  type="text"
-                  placeholder="Buscar calzado por nombre o marca..."
-                  className={`input ${styles.searchInput}`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+            <div className={adminStyles.tableContainer} style={{ marginTop: '2rem' }}>
+              <div className={adminStyles.tableHeader}>
+                <div className={adminStyles.searchBox}>
+                  <Search className={adminStyles.searchIcon} size={18} />
+                  <input
+                    type="text"
+                    placeholder="Buscar calzado..."
+                    className={`input ${adminStyles.searchInput}`}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: '40px' }}></th>
-                  <th>Producto</th>
-                  <th>Marca</th>
-                  <th>Color</th>
-                  <th>Precio</th>
-                  <th>Stock Total</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInventory.map((item) => {
-                  const isExpanded = expandedRows.includes(item.id);
-                  const totalStock = getTotalStock(item.tallas);
-                  
-                  return (
-                    <React.Fragment key={item.id}>
-                      <tr className={styles.mainRow} onClick={() => toggleRow(item.id)}>
-                        <td>
-                          <ChevronDown 
-                            size={18} 
-                            className={`${styles.expandIcon} ${isExpanded ? styles.open : ""}`} 
-                          />
-                        </td>
-                        <td>
-                          <div className={styles.productCell}>
-                            <img 
-                              src={item.imageUrl || "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80"} 
-                              alt={item.nombre} 
-                              className={styles.shoeImage}
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
-                              }}
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }}></th>
+                    <th>Producto (Código)</th>
+                    <th>Color</th>
+                    <th>Precio</th>
+                    <th>Stock Total</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInventory.map((item) => {
+                    const isExpanded = expandedRows.includes(item.id);
+                    const totalStock = getTotalStock(item.tallas);
+                    
+                    return (
+                      <React.Fragment key={item.id}>
+                        <tr className={adminStyles.mainRow} onClick={() => toggleRow(item.id)}>
+                          <td>
+                            <ChevronDown 
+                              size={18} 
+                              className={`${adminStyles.expandIcon} ${isExpanded ? adminStyles.open : ""}`} 
                             />
-                            <span>{item.nombre}</span>
-                          </div>
-                        </td>
-                        <td>{item.marca}</td>
-                        <td>{item.color}</td>
-                        <td>${item.precio}</td>
-                        <td>{totalStock}</td>
-                        <td>{getStockBadge(totalStock)}</td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className={styles.expandedContent}>
-                          <td colSpan={7}>
-                            <div className={styles.expandedInner}>
-                              <h4>Tallas Disponibles</h4>
-                              <div className={styles.sizesGrid}>
-                                {item.tallas.length > 0 ? (
-                                  item.tallas.map((t, idx) => (
-                                    <div key={idx} className={styles.sizeCard}>
-                                      <span className={styles.sizeNumber}>{t.talla}</span>
-                                      <span className={styles.sizeStock}>
-                                        {t.stock} {t.stock === 1 ? 'par' : 'pares'}
-                                      </span>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <span style={{ color: 'var(--text-secondary)' }}>No hay tallas registradas.</span>
-                                )}
-                              </div>
+                          </td>
+                          <td>
+                            <div className={adminStyles.productCell}>
+                              <img 
+                                src={item.imageUrl || "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80"} 
+                                alt={item.nombre} 
+                                className={adminStyles.shoeImage}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
+                                }}
+                              />
+                              <span>{item.nombre}</span>
                             </div>
                           </td>
+                          <td>{item.color}</td>
+                          <td>${item.precio}</td>
+                          <td>{totalStock}</td>
+                          <td>{getStockBadge(totalStock)}</td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-                {filteredInventory.length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>
-                      No se encontraron resultados
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </main>
-      </div>
+                        {isExpanded && (
+                          <tr className={adminStyles.expandedContent}>
+                            <td colSpan={6}>
+                              <div className={adminStyles.expandedInner}>
+                                <h4>Tallas Disponibles</h4>
+                                <div className={adminStyles.sizesGrid}>
+                                  {item.tallas.length > 0 ? (
+                                    item.tallas.map((t, idx) => (
+                                      <div key={idx} className={adminStyles.sizeCard}>
+                                        <span className={adminStyles.sizeNumber}>{t.talla}</span>
+                                        <div className={adminStyles.sizeStockContainer} style={{ justifyContent: 'center' }}>
+                                          <span className={adminStyles.sizeStock}>
+                                            {t.stock} {t.stock === 1 ? 'par' : 'pares'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <span style={{ color: 'var(--text-secondary)' }}>No hay tallas registradas.</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                  {filteredInventory.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: "center", padding: "3rem" }}>
+                        No se encontraron resultados
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </main>
     </div>
   );
 }

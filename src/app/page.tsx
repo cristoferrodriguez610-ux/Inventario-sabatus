@@ -17,20 +17,14 @@ export default function Login() {
     setIsLoading(true);
     setError("");
 
-    // Simulate login for now until API is connected
-    setTimeout(() => {
-      // First, get users from localStorage
-      const savedUsers = localStorage.getItem("sabatus_users");
-      let users: any[] = [];
-      
-      if (savedUsers) {
-        users = JSON.parse(savedUsers);
-      } else {
-        // Fallback mock users if none exist in localStorage yet
-        users = [
-          { nombre: "admin", password: "admin", rol: "Admin" },
-        ];
+    try {
+      // Fetch users from API (Google Sheets)
+      const res = await fetch("/api/users");
+      if (!res.ok) {
+        throw new Error("Failed to fetch users");
       }
+      
+      const users: any[] = await res.json();
 
       // Check if user exists
       const user = users.find(u => u.nombre.toLowerCase() === username.toLowerCase() && u.password === password);
@@ -42,15 +36,24 @@ export default function Login() {
           router.push("/inventario");
         }
       } else {
-        // Ultimate fallback just in case
+        // Fallback for first setup or if Sheets is empty/broken
         if (username === "admin" && password === "admin123") {
           router.push("/admin");
         } else {
           setError("Usuario o contraseña incorrectos");
         }
       }
+    } catch (err) {
+      console.error(err);
+      // Fallback
+      if (username === "admin" && password === "admin123") {
+        router.push("/admin");
+      } else {
+        setError("Error de conexión. Intente nuevamente.");
+      }
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
