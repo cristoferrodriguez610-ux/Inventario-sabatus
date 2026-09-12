@@ -815,15 +815,15 @@ export default function AdminDashboard() {
                     <div key={idx} className={styles.sizeInputRow}>
                       <div className={styles.formGroup} style={{ flex: 1 }}>
                         <label className={styles.label} style={{ fontSize: '0.75rem' }}>Talla</label>
-                        <select 
-                          className="input"
-                          value={t.talla}
-                          onChange={(e) => handleSizeChange(idx, 'talla', Number(e.target.value))}
-                        >
-                          {[35, 36, 37, 38, 39, 40, 41, 42, 43, 44].map(sz => (
-                            <option key={sz} value={sz}>{sz}</option>
-                          ))}
-                        </select>
+                          <select 
+                            className={`input`}
+                            value={t.talla}
+                            onChange={(e) => handleSizeChange(idx, "talla", parseInt(e.target.value))}
+                          >
+                            {[34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45].map(sz => (
+                              <option key={sz} value={sz}>{sz}</option>
+                            ))}
+                          </select>
                       </div>
                       <div className={styles.formGroup} style={{ flex: 1 }}>
                         <label className={styles.label} style={{ fontSize: '0.75rem' }}>Stock</label>
