@@ -62,6 +62,7 @@ export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -673,25 +674,42 @@ export default function AdminDashboard() {
             <form onSubmit={handleSave}>
               <div className={styles.modalBody}>
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Imagen del Calzado (Se convierte a Base64 temporalmente)</label>
+                  <label className={styles.label}>Imagen del Calzado (Sube directo a la nube)</label>
                   <input 
                     type="file" 
                     accept="image/*"
                     className="input" 
-                    onChange={(e) => {
+                    disabled={isUploadingImage}
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setFormData({...formData, imageUrl: reader.result as string});
-                        };
-                        reader.readAsDataURL(file);
+                        setIsUploadingImage(true);
+                        try {
+                          const formData = new FormData();
+                          formData.append("image", file);
+                          
+                          const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
+                          const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+                            method: 'POST',
+                            body: formData
+                          });
+                          
+                          const data = await response.json();
+                          if (data.success) {
+                            setFormData(prev => ({...prev, imageUrl: data.data.url}));
+                          } else {
+                            alert("Error al subir la imagen. Intenta de nuevo.");
+                          }
+                        } catch (error) {
+                          console.error("Error subiendo imagen:", error);
+                          alert("Error al subir la imagen.");
+                        } finally {
+                          setIsUploadingImage(false);
+                        }
                       }
                     }}
                   />
-                  {formData.imageUrl && formData.imageUrl.startsWith("data:") && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--warning)' }}>Nota: Para Google Sheets es mejor usar URLs públicas (http...) en lugar de subir archivos.</span>
-                  )}
+                  {isUploadingImage && <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Subiendo imagen a la nube, por favor espera...</p>}
                   {formData.imageUrl && (
                     <img 
                       src={formData.imageUrl} 
