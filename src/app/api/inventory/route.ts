@@ -18,24 +18,28 @@ export async function GET() {
     const rows = response.data.values || [];
 
     const inventory = rows.map((row) => {
-      const tallas = SIZES.map((talla, idx) => ({
-        talla,
-        stock: Number(row[idx + 1]) || 0,
+      // row[0]: Nombre (A)
+      // row[1]: Código (B)
+      // row[2] to row[13]: Tallas 34 to 45 (C to N)
+      
+      const tallas = SIZES.map((size, idx) => ({
+        talla: size,
+        stock: parseInt(row[idx + 2]) || 0, // offset by 2 (C)
       })).filter(t => t.stock >= 0);
 
       return {
-        id: row[0] || "",
-        codigo: row[0] || "",
-        nombre: row[18] || row[0] || "", // Col S
+        id: row[1] || row[0] || "", // Using codigo as ID, fallback to nombre if empty
+        codigo: row[1] || "", // Col B
+        nombre: row[0] || "", // Col A
         marca: row[19] || "", // Col T
-        precioCompra: Number(row[13]) || 0, // Col N
-        precioRevendedor: Number(row[14]) || 0, // Col O
-        precio: Number(row[15]) || 0, // Col P (Venta)
-        color: row[16] || "", // Col Q
-        imageUrl: row[17] || "", // Col R
+        precioCompra: Number(row[14]) || 0, // Col O
+        precioRevendedor: Number(row[15]) || 0, // Col P
+        precio: Number(row[16]) || 0, // Col Q (Venta)
+        color: row[17] || "", // Col R
+        imageUrl: row[18] || "", // Col S
         tallas,
       };
-    }).filter(item => item.id !== "" && item.id.toLowerCase() !== "marcas"); // Filter out empty rows and header
+    }).filter(item => item.id !== "" && item.nombre.toLowerCase() !== "nombre"); // Filter out empty and header
 
     return NextResponse.json(inventory);
   } catch (error) {
@@ -49,21 +53,21 @@ export async function POST(request: Request) {
     const body = await request.json();
     const sheets = await getGoogleSheets();
 
-    // Map body.tallas to the 10 columns
+    // Map body.tallas to the 12 columns
     const sizeStocks = SIZES.map(size => {
       const found = body.tallas?.find((t: any) => t.talla === size);
       return found ? found.stock : 0;
     });
 
     const newRow = [
-      body.codigo || body.id, // Col A
-      ...sizeStocks, // Col B to M
-      body.precioCompra || 0, // Col N
-      body.precioRevendedor || 0, // Col O
-      body.precio || 0, // Col P
-      body.color || "", // Col Q
-      body.imageUrl || "", // Col R
-      body.nombre || "", // Col S
+      body.nombre || "", // Col A
+      body.codigo || body.id, // Col B
+      ...sizeStocks, // Col C to N
+      body.precioCompra || 0, // Col O
+      body.precioRevendedor || 0, // Col P
+      body.precio || 0, // Col Q
+      body.color || "", // Col R
+      body.imageUrl || "", // Col S
       body.marca || "", // Col T
     ];
 
@@ -88,14 +92,15 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const sheets = await getGoogleSheets();
 
-    // Find the row index
+    // Find the row index using the "Código" column (Column B, index 1)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Inventario!A2:A",
+      range: "Inventario!B2:B",
     });
 
     const rows = response.data.values || [];
-    const rowIndex = rows.findIndex(row => row[0] === body.id);
+    // rows here will just be [[codigo1], [codigo2], ...]
+    const rowIndex = rows.findIndex(row => row[0] === (body.codigo || body.id));
 
     if (rowIndex === -1) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
@@ -109,14 +114,14 @@ export async function PUT(request: Request) {
     });
 
     const updatedRow = [
-      body.codigo || body.id, // Col A
+      body.nombre || "", // Col A
+      body.codigo || body.id, // Col B
       ...sizeStocks,
-      body.precioCompra || 0,
-      body.precioRevendedor || 0,
-      body.precio || 0,
-      body.color || "",
-      body.imageUrl || "",
-      body.nombre || "", // Col S
+      body.precioCompra || 0, // Col O
+      body.precioRevendedor || 0, // Col P
+      body.precio || 0, // Col Q
+      body.color || "", // Col R
+      body.imageUrl || "", // Col S
       body.marca || "", // Col T
     ];
 
@@ -147,10 +152,10 @@ export async function DELETE(request: Request) {
 
     const sheets = await getGoogleSheets();
 
-    // Find the row index
+    // Find the row index using Column B (Código)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Inventario!A2:A",
+      range: "Inventario!B2:B",
     });
 
     const rows = response.data.values || [];
