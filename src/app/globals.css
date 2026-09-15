@@ -1,39 +1,39 @@
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600;700&display=swap');
 
 :root {
-  /* SABATTUS Brand Palette — Black & White Premium */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #111111;
-  --bg-tertiary: #1a1a1a;
-  --bg-card: #141414;
+  /* SABATTUS Brand Palette — White/Light Premium */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f7f5;
+  --bg-tertiary: #efefed;
+  --bg-card: #ffffff;
 
-  --text-primary: #f5f5f0;
-  --text-secondary: #888880;
-  --text-muted: #555550;
+  --text-primary: #0a0a0a;
+  --text-secondary: #555550;
+  --text-muted: #aaaaaa;
 
-  /* Brand accent: Pure White & Off-White (clean on black) */
-  --accent-primary: #f5f5f0;
-  --accent-hover: #ffffff;
-  --accent-inverse: #0a0a0a;
+  /* Brand accent: Pure Black on White */
+  --accent-primary: #0a0a0a;
+  --accent-hover: #1a1a1a;
+  --accent-inverse: #ffffff;
 
-  --danger: #ff3b30;
-  --danger-subtle: rgba(255, 59, 48, 0.12);
-  --success: #30d158;
-  --success-subtle: rgba(48, 209, 88, 0.12);
-  --warning: #ffd60a;
-  --warning-subtle: rgba(255, 214, 10, 0.12);
+  --danger: #e53935;
+  --danger-subtle: rgba(229, 57, 53, 0.08);
+  --success: #2e7d32;
+  --success-subtle: rgba(46, 125, 50, 0.08);
+  --warning: #f57f17;
+  --warning-subtle: rgba(245, 127, 23, 0.08);
 
-  --border-color: #222220;
-  --border-subtle: #1a1a1a;
+  --border-color: #e5e5e3;
+  --border-subtle: #f0f0ee;
 
   --radius-sm: 2px;
   --radius-md: 4px;
   --radius-lg: 6px;
   --radius-xl: 8px;
 
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.5);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.6);
-  --shadow-lg: 0 16px 48px rgba(0,0,0,0.8);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 16px 48px rgba(0,0,0,0.12);
 
   --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -86,12 +86,12 @@ button {
   padding: 0.75rem 1rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 0.9rem;
   font-weight: 400;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   outline: none;
 }
@@ -102,7 +102,7 @@ button {
 
 .input:focus {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(245, 245, 240, 0.08);
+  box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.06);
 }
 
 /* ─── Buttons ─────────────────────────────────────────── */
@@ -131,7 +131,7 @@ button {
 .btn-primary:hover {
   background-color: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(255,255,255,0.12);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 .btn-primary:active {
@@ -145,7 +145,7 @@ button {
 }
 
 .btn-secondary:hover {
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
   border-color: var(--text-muted);
 }
 
@@ -153,16 +153,6 @@ button {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
 }
 
 .animate-fade-in {
@@ -176,16 +166,15 @@ button {
   border-radius: var(--radius-lg);
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: box-shadow var(--transition-fast);
 }
 
 .card:hover {
-  border-color: #2a2a2a;
   box-shadow: var(--shadow-md);
 }
 
 /* ─── Scrollbar ──────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #333; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

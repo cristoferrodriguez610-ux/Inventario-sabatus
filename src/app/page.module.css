@@ -4,10 +4,10 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-secondary);
   background-image:
-    linear-gradient(rgba(245,245,240,0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(245,245,240,0.02) 1px, transparent 1px);
+    linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
   background-size: 40px 40px;
   padding: 1rem;
   position: relative;
@@ -17,12 +17,12 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(245,245,240,0.04) 0%, transparent 70%);
+  background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(0,0,0,0.03) 0%, transparent 70%);
   pointer-events: none;
 }
 
 .loginCard {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   padding: 3rem 2.5rem;
@@ -44,7 +44,6 @@
   gap: 0.25rem;
 }
 
-/* Replace box logo with brand wordmark style */
 .logo {
   display: flex;
   align-items: center;
@@ -54,9 +53,9 @@
 
 .title {
   font-family: var(--font-brand);
-  font-size: 2.5rem;
+  font-size: 2.75rem;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-primary);
   line-height: 1;

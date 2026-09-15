@@ -2,13 +2,13 @@
 .adminContainer {
   display: flex;
   min-height: 100vh;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-secondary);
 }
 
 /* ─── Sidebar ─────────────────────────────────────────── */
 .sidebar {
   width: 240px;
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   border-right: 1px solid var(--border-color);
   padding: 2rem 1.25rem;
   display: flex;
@@ -48,7 +48,7 @@
 }
 
 .logo {
-  display: none; /* wordmark replaces icon */
+  display: none;
 }
 
 .nav {
@@ -64,7 +64,7 @@
   gap: 0.875rem;
   padding: 0.7rem 1rem;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-family: var(--font-brand);
   font-weight: 700;
   font-size: 0.85rem;
@@ -79,7 +79,7 @@
 }
 
 .navItem:hover {
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
   color: var(--text-primary);
 }
 
@@ -91,12 +91,10 @@
 .logoutBtn {
   margin-top: auto;
   color: var(--danger) !important;
-  border: 1px solid transparent;
 }
 
 .logoutBtn:hover {
   background-color: var(--danger-subtle) !important;
-  border-color: var(--danger);
   color: var(--danger) !important;
 }
 
@@ -135,25 +133,26 @@
 }
 
 .statCard {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
   display: flex;
   align-items: center;
   gap: 1.25rem;
-  transition: border-color var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-fast);
 }
 
 .statCard:hover {
-  border-color: #2a2a2a;
+  box-shadow: var(--shadow-md);
 }
 
 .statIcon {
   width: 2.75rem;
   height: 2.75rem;
   border-radius: var(--radius-md);
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   display: flex;
@@ -186,10 +185,11 @@
 
 /* ─── Table ──────────────────────────────────────────── */
 .tableContainer {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .tableHeader {
@@ -198,7 +198,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
 }
 
 .searchBox {
@@ -216,7 +216,6 @@
 
 .searchInput {
   padding-left: 2.5rem;
-  background-color: var(--bg-secondary);
 }
 
 .tableContainer :global(table) {
@@ -251,13 +250,13 @@
 }
 
 .tableContainer :global(tbody tr.mainRow:hover) {
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
 }
 
 .tableContainer :global(tr.expandedContent td) {
   padding: 0;
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--bg-primary);
+  background-color: var(--bg-secondary);
 }
 
 /* ─── Expanded Row ───────────────────────────────────── */
@@ -284,7 +283,7 @@
 }
 
 .sizeCard {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 0.75rem 1rem;
@@ -292,11 +291,13 @@
   flex-direction: column;
   align-items: center;
   min-width: 90px;
-  transition: border-color var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .sizeCard:hover {
   border-color: var(--text-muted);
+  box-shadow: var(--shadow-md);
 }
 
 .sizeNumber {
@@ -321,7 +322,6 @@
   padding: 0.25rem 0.4rem;
   border-radius: 3px;
   transition: background-color var(--transition-fast);
-  font-family: var(--font-body);
 }
 
 .sizeStock:hover {
@@ -333,7 +333,7 @@
   text-align: center;
   font-size: 0.75rem;
   padding: 0.25rem;
-  border: 1px solid var(--accent-primary);
+  border: 1.5px solid var(--accent-primary);
   border-radius: 3px;
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -341,7 +341,7 @@
 }
 
 .stockBtn {
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   border-radius: 50%;
@@ -379,7 +379,7 @@
 }
 
 .actionBtn:hover {
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
   color: var(--text-primary);
 }
 
@@ -416,7 +416,7 @@
   height: 44px;
   border-radius: var(--radius-sm);
   object-fit: cover;
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
 }
 
@@ -439,16 +439,16 @@
 .modalOverlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.75);
+  background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(4px);
 }
 
 .modalContent {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   width: 100%;
@@ -474,6 +474,7 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--text-primary);
 }
 
 .closeBtn {
@@ -490,7 +491,7 @@
 }
 
 .closeBtn:hover {
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
   color: var(--text-primary);
 }
 
@@ -528,7 +529,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-secondary);
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 
@@ -537,7 +538,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 1.25rem;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-secondary);
 }
 
 .sizesHeader {
@@ -582,7 +583,7 @@
   align-items: center;
   gap: 0.5rem;
   color: var(--text-secondary);
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border: 1px dashed var(--border-color);
   border-radius: var(--radius-md);
   font-family: var(--font-brand);
