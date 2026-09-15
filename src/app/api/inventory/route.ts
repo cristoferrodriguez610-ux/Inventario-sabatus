@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getGoogleSheets } from "@/lib/google-sheets";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
-const RANGE = "Inventario!A2:T"; // Expanded to T to accommodate 12 sizes (34-45) + fields
+const RANGE = "Inventario!A3:T"; // Expanded to T to accommodate 12 sizes (34-45) + fields
 
 // Helper to map sizes to array indices (34 to 45 -> 1 to 12)
 const SIZES = [34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45];
@@ -92,10 +92,10 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const sheets = await getGoogleSheets();
 
-    // Find the row index using the "Código" column (Column B, index 1)
+    // Find the row index using the "Código" column (Column B) starting from row 3
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Inventario!B2:B",
+      range: "Inventario!B3:B",
     });
 
     const rows = response.data.values || [];
@@ -106,7 +106,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    const actualRowNumber = rowIndex + 2; // +1 for 0-index, +1 for header
+    const actualRowNumber = rowIndex + 3; // +1 for 0-index, +2 for headers
 
     const sizeStocks = SIZES.map(size => {
       const found = body.tallas?.find((t: any) => t.talla === size);
@@ -152,10 +152,10 @@ export async function DELETE(request: Request) {
 
     const sheets = await getGoogleSheets();
 
-    // Find the row index using Column B (Código)
+    // Find the row index using Column B (Código) starting from row 3
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Inventario!B2:B",
+      range: "Inventario!B3:B",
     });
 
     const rows = response.data.values || [];
@@ -165,7 +165,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    const actualRowNumber = rowIndex + 2;
+    const actualRowNumber = rowIndex + 3;
 
     // Get the sheet ID for "Inventario"
     const sheetMetadata = await sheets.spreadsheets.get({
