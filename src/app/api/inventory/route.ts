@@ -27,11 +27,18 @@ export async function GET() {
         stock: parseInt(row[idx + 2]) || 0, // offset by 2 (C)
       })).filter(t => t.stock >= 0);
 
+      const marcaRaw = row[19] || ""; // Col T
+      let nombreFull = row[0] || ""; // Col A
+      let nombreLimpio = nombreFull;
+      if (marcaRaw && nombreFull.toLowerCase().startsWith(marcaRaw.toLowerCase())) {
+        nombreLimpio = nombreFull.substring(marcaRaw.length).trim();
+      }
+
       return {
         id: row[1] || row[0] || "", // Using codigo as ID, fallback to nombre if empty
         codigo: row[1] || "", // Col B
-        nombre: row[0] || "", // Col A
-        marca: row[19] || "", // Col T
+        nombre: nombreLimpio, // Col A (sin la marca)
+        marca: marcaRaw, // Col T
         precioCompra: Number(row[14]) || 0, // Col O
         precioRevendedor: Number(row[15]) || 0, // Col P
         precio: Number(row[16]) || 0, // Col Q (Venta)
@@ -59,8 +66,10 @@ export async function POST(request: Request) {
       return found ? found.stock : 0;
     });
 
+    const fullNombre = `${body.marca || ""} ${body.nombre || ""}`.trim();
+
     const newRow = [
-      body.nombre || "", // Col A
+      fullNombre, // Col A
       body.codigo || body.id, // Col B
       ...sizeStocks, // Col C to N
       body.precioCompra || 0, // Col O
@@ -113,8 +122,10 @@ export async function PUT(request: Request) {
       return found ? found.stock : 0;
     });
 
+    const fullNombre = `${body.marca || ""} ${body.nombre || ""}`.trim();
+
     const updatedRow = [
-      body.nombre || "", // Col A
+      fullNombre, // Col A
       body.codigo || body.id, // Col B
       ...sizeStocks,
       body.precioCompra || 0, // Col O
