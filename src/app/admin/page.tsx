@@ -845,7 +845,6 @@ export default function AdminDashboard() {
                         <input 
                           type="number" 
                           className="input" 
-                          required
                           min="0"
                           value={t.stock === 0 ? "" : t.stock}
                           placeholder="0"
