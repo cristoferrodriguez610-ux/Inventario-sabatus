@@ -495,8 +495,8 @@ export default function AdminDashboard() {
                                 }}
                               />
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 'bold' }}>{item.codigo}</span>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.marca} {item.nombre}</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{item.marca} {item.nombre}</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.codigo}</span>
                               </div>
                             </div>
                           </td>
