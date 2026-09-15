@@ -14,7 +14,8 @@ import {
   Trash2,
   AlertCircle,
   X,
-  ChevronDown
+  ChevronDown,
+  Menu
 } from "lucide-react";
 import styles from "./page.module.css";
 
@@ -47,6 +48,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("inventory");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   const [inventory, setInventory] = useState<Shoe[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -381,30 +383,38 @@ export default function AdminDashboard() {
 
   return (
     <div className={styles.adminContainer}>
-      <aside className={styles.sidebar}>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className={styles.mobileOverlay} onClick={() => setSidebarOpen(false)} />
+      )}
+
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
         <div className={styles.sidebarHeader}>
           <span>SABATTUS</span>
           <span className={styles.sidebarSubtitle}>Admin Panel</span>
+          <button className={styles.closeSidebarBtn} onClick={() => setSidebarOpen(false)}>
+            <X size={20} />
+          </button>
         </div>
 
         <nav className={styles.nav}>
           <button
             className={`${styles.navItem} ${activeTab === "inventory" ? styles.active : ""}`}
-            onClick={() => setActiveTab("inventory")}
+            onClick={() => { setActiveTab("inventory"); setSidebarOpen(false); }}
           >
             <LayoutDashboard size={20} />
             Inventario
           </button>
           <button
             className={`${styles.navItem} ${activeTab === "users" ? styles.active : ""}`}
-            onClick={() => setActiveTab("users")}
+            onClick={() => { setActiveTab("users"); setSidebarOpen(false); }}
           >
             <Users size={20} />
             Usuarios
           </button>
           <button
             className={`${styles.navItem} ${activeTab === "settings" ? styles.active : ""}`}
-            onClick={() => setActiveTab("settings")}
+            onClick={() => { setActiveTab("settings"); setSidebarOpen(false); }}
           >
             <Settings size={20} />
             Configuración
@@ -418,6 +428,17 @@ export default function AdminDashboard() {
       </aside>
 
       <main className={styles.mainContent}>
+        {/* Mobile top bar */}
+        <div className={styles.mobileTopBar}>
+          <button className={styles.hamburgerBtn} onClick={() => setSidebarOpen(true)}>
+            <Menu size={22} />
+          </button>
+          <span className={styles.mobileBrand}>SABATTUS</span>
+          <button className="btn btn-primary" style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem' }} onClick={() => openModal()}>
+            <Plus size={16} />
+          </button>
+        </div>
+
         {isLoadingData ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-secondary)' }}>
             <span className="animate-spin" style={{ fontSize: '2rem', marginRight: '1rem' }}>⟳</span> Cargando datos desde Google Sheets...
