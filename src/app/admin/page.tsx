@@ -507,14 +507,20 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             <div className={styles.productCell}>
-                              <img 
-                                src={item.imageUrl || "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80"} 
-                                alt={item.nombre} 
-                                className={styles.shoeImage}
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=150&q=80";
-                                }}
-                              />
+                              {item.imageUrl ? (
+                                <img 
+                                  src={item.imageUrl} 
+                                  alt={item.nombre} 
+                                  className={styles.shoeImage}
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove(styles.hiddenPlaceholder);
+                                  }}
+                                />
+                              ) : null}
+                              <div className={`${styles.shoeImagePlaceholder} ${item.imageUrl ? styles.hiddenPlaceholder : ''}`}>
+                                👟
+                              </div>
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{item.marca} {item.nombre}</span>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.codigo}</span>

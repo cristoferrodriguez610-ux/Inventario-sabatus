@@ -455,6 +455,24 @@
   object-fit: cover;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
+  display: block;
+}
+
+.shoeImagePlaceholder {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.hiddenPlaceholder {
+  display: none;
 }
 
 .productCell {
