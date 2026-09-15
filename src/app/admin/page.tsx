@@ -552,6 +552,7 @@ export default function AdminDashboard() {
                                               className={styles.stockInput}
                                               value={tempStockVal}
                                               autoFocus
+                                              onFocus={(e) => e.target.select()}
                                               onChange={(e) => setTempStockVal(Number(e.target.value))}
                                               onBlur={() => saveInlineStock(item, idx)}
                                               onKeyDown={(e) => {
@@ -788,6 +789,7 @@ export default function AdminDashboard() {
                       min="0"
                       step="0.01"
                       value={formData.precioCompra}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => setFormData({...formData, precioCompra: Number(e.target.value)})}
                     />
                   </div>
@@ -799,6 +801,7 @@ export default function AdminDashboard() {
                       min="0"
                       step="0.01"
                       value={formData.precioRevendedor}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => setFormData({...formData, precioRevendedor: Number(e.target.value)})}
                     />
                   </div>
@@ -811,6 +814,7 @@ export default function AdminDashboard() {
                       min="0"
                       step="0.01"
                       value={formData.precio}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => setFormData({...formData, precio: Number(e.target.value)})}
                     />
                   </div>
@@ -843,7 +847,8 @@ export default function AdminDashboard() {
                           className="input" 
                           required
                           min="0"
-                          value={t.stock}
+                          value={t.stock === 0 ? "" : t.stock}
+                          placeholder="0"
                           onChange={(e) => handleSizeChange(idx, 'stock', Number(e.target.value))}
                         />
                       </div>
