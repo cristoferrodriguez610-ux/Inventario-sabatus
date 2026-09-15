@@ -43,7 +43,7 @@ export async function GET() {
         precioRevendedor: Number(row[15]) || 0, // Col P
         precio: Number(row[16]) || 0, // Col Q (Venta)
         color: row[17] || "", // Col R
-        imageUrl: row[18] || "", // Col S
+        imageUrl: (row[18] || "").replace(/^http:\/\//, 'https://'), // Col S
         tallas,
       };
     }).filter(item => item.id !== "" && item.nombre.toLowerCase() !== "nombre"); // Filter out empty and header

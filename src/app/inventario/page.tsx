@@ -67,6 +67,7 @@ export default function InventoryDashboard() {
   );
 
   const getTotalStock = (tallas: ShoeSize[]) => tallas.reduce((sum, t) => sum + t.stock, 0);
+  const fixUrl = (url: string) => url ? url.replace(/^http:\/\//, 'https://') : url;
 
   const getStockBadge = (stock: number) => {
     if (stock === 0) return <span className={`${adminStyles.badge} ${adminStyles.badgeDanger}`}>Agotado</span>;
@@ -152,7 +153,7 @@ export default function InventoryDashboard() {
                             <div className={adminStyles.productCell}>
                               {item.imageUrl ? (
                                 <img 
-                                  src={item.imageUrl} 
+                                  src={fixUrl(item.imageUrl)} 
                                   alt={item.nombre} 
                                   className={adminStyles.shoeImage}
                                   onError={(e) => {
