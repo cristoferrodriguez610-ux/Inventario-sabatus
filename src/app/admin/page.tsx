@@ -737,10 +737,23 @@ export default function AdminDashboard() {
                       type="text" 
                       className="input" 
                       required
+                      list="marcas-list"
                       placeholder="Ej. Jordan"
                       value={formData.marca}
                       onChange={(e) => setFormData({...formData, marca: e.target.value})}
                     />
+                    <datalist id="marcas-list">
+                      <option value="Nike" />
+                      <option value="Adidas" />
+                      <option value="New Balance" />
+                      <option value="Jordan" />
+                      <option value="Timberland" />
+                      <option value="On Cloud" />
+                      <option value="Hoka" />
+                      <option value="Puma" />
+                      <option value="Reebok" />
+                      <option value="Asics" />
+                    </datalist>
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Nombre Normal *</label>
