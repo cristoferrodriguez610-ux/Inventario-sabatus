@@ -383,10 +383,8 @@ export default function AdminDashboard() {
     <div className={styles.adminContainer}>
       <aside className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
-          <div className={styles.logo}>
-            <Package size={28} />
-          </div>
-          <span>Sabatus Admin</span>
+          <span>SABATTUS</span>
+          <span className={styles.sidebarSubtitle}>Admin Panel</span>
         </div>
 
         <nav className={styles.nav}>

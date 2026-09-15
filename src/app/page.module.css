@@ -1,56 +1,81 @@
+/* ─── Login Page ─────────────────────────────────────── */
 .loginContainer {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background-color: var(--bg-primary);
+  background-image:
+    linear-gradient(rgba(245,245,240,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245,245,240,0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
   padding: 1rem;
+  position: relative;
+}
+
+.loginContainer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(245,245,240,0.04) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .loginCard {
-  background-color: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  padding: 2.5rem 2rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 3rem 2.5rem;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 2rem;
+  position: relative;
+  z-index: 1;
 }
 
 .header {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
 }
 
+/* Replace box logo with brand wordmark style */
 .logo {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: var(--radius-md);
-  background-color: var(--accent-primary);
-  color: white;
   margin-bottom: 1rem;
 }
 
 .title {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-family: var(--font-brand);
+  font-size: 2.5rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-primary);
-  margin-bottom: 0.5rem;
+  line-height: 1;
 }
 
 .subtitle {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  font-family: var(--font-brand);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .inputGroup {
@@ -60,19 +85,25 @@
 }
 
 .label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-primary);
+  font-family: var(--font-brand);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 .error {
   color: var(--danger);
-  font-size: 0.875rem;
+  font-size: 0.82rem;
   text-align: center;
-  margin-top: 0.5rem;
+  font-weight: 500;
 }
 
 .submitBtn {
   width: 100%;
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
+  padding: 1rem;
+  font-size: 1rem;
+  letter-spacing: 0.18em;
 }

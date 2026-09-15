@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LogIn, Package, Eye, EyeOff } from "lucide-react";
+import { LogIn, Eye, EyeOff } from "lucide-react";
 import styles from "./page.module.css";
 import { useRouter } from "next/navigation";
 
@@ -62,10 +62,15 @@ export default function Login() {
       <div className={`${styles.loginCard} animate-fade-in`}>
         <div className={styles.header}>
           <div className={styles.logo}>
-            <Package size={24} />
+            {/* SABATTUS brand icon — minimalist shoe silhouette */}
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="36" height="36" rx="4" fill="#f5f5f0"/>
+              <path d="M6 24 C6 24 10 16 18 16 C22 16 28 20 30 20 L30 26 C30 26 24 28 18 28 C12 28 6 26 6 26 Z" fill="#0a0a0a"/>
+              <path d="M14 16 L16 10 L20 10 L22 16" fill="#0a0a0a" opacity="0.3"/>
+            </svg>
           </div>
-          <h1 className={styles.title}>Sabatus</h1>
-          <p className={styles.subtitle}>Gestión de Inventario</p>
+          <h1 className={styles.title}>SABATTUS</h1>
+          <p className={styles.subtitle}>Luce y Viste Bien</p>
         </div>
 
         <form onSubmit={handleLogin} className={styles.form}>
