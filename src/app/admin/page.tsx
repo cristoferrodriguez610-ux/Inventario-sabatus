@@ -59,6 +59,7 @@ export default function AdminDashboard() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editingStockId, setEditingStockId] = useState<{shoeId: string, sizeIdx: number} | null>(null);
   const [tempStockVal, setTempStockVal] = useState<number>(0);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -514,6 +515,12 @@ export default function AdminDashboard() {
                                   src={fixUrl(item.imageUrl)} 
                                   alt={item.nombre} 
                                   className={styles.shoeImage}
+                                  referrerPolicy="no-referrer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewImage(item.imageUrl);
+                                  }}
+                                  style={{ cursor: 'pointer' }}
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).style.display = 'none';
                                     (e.target as HTMLImageElement).nextElementSibling?.classList.remove(styles.hiddenPlaceholder);
@@ -979,6 +986,21 @@ export default function AdminDashboard() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {/* Lightbox Modal */}
+      {previewImage && (
+        <div className={styles.lightboxOverlay} onClick={() => setPreviewImage(null)}>
+          <button className={styles.lightboxClose} onClick={() => setPreviewImage(null)}>
+            <X size={28} />
+          </button>
+          <img 
+            src={fixUrl(previewImage)} 
+            alt="Preview" 
+            className={styles.lightboxImg}
+            referrerPolicy="no-referrer"
+            onClick={(e) => e.stopPropagation()} 
+          />
         </div>
       )}
     </div>

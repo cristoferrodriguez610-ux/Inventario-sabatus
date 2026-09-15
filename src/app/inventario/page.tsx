@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Package, Search, LogOut, ChevronDown } from "lucide-react";
+import { Package, Search, LogOut, ChevronDown, X } from "lucide-react";
 import styles from "./page.module.css";
 // We reuse the admin CSS modules to maintain the exact same look, just hiding admin features
 import adminStyles from "../admin/page.module.css";
@@ -31,6 +31,7 @@ export default function InventoryDashboard() {
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -156,6 +157,12 @@ export default function InventoryDashboard() {
                                   src={fixUrl(item.imageUrl)} 
                                   alt={item.nombre} 
                                   className={adminStyles.shoeImage}
+                                  referrerPolicy="no-referrer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewImage(item.imageUrl);
+                                  }}
+                                  style={{ cursor: 'pointer' }}
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).style.display = 'none';
                                     (e.target as HTMLImageElement).nextElementSibling?.classList.remove(adminStyles.hiddenPlaceholder);
@@ -217,6 +224,21 @@ export default function InventoryDashboard() {
           </>
         )}
       </main>
+      {/* Lightbox Modal */}
+      {previewImage && (
+        <div className={adminStyles.lightboxOverlay} onClick={() => setPreviewImage(null)}>
+          <button className={adminStyles.lightboxClose} onClick={() => setPreviewImage(null)}>
+            <X size={28} />
+          </button>
+          <img 
+            src={fixUrl(previewImage)} 
+            alt="Preview" 
+            className={adminStyles.lightboxImg}
+            referrerPolicy="no-referrer"
+            onClick={(e) => e.stopPropagation()} 
+          />
+        </div>
+      )}
     </div>
   );
 }
