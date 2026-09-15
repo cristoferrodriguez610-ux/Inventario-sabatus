@@ -540,40 +540,40 @@ export default function AdminDashboard() {
                                       return (
                                       <div key={idx} className={styles.sizeCard}>
                                         <span className={styles.sizeNumber}>{t.talla}</span>
+                                        <div className={styles.sizeDivider} />
+                                        {isEditingThis ? (
+                                          <input 
+                                            type="number"
+                                            className={styles.stockInput}
+                                            value={tempStockVal}
+                                            autoFocus
+                                            onFocus={(e) => e.target.select()}
+                                            onChange={(e) => setTempStockVal(Number(e.target.value))}
+                                            onBlur={() => saveInlineStock(item, idx)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') saveInlineStock(item, idx);
+                                              if (e.key === 'Escape') setEditingStockId(null);
+                                            }}
+                                          />
+                                        ) : (
+                                          <span
+                                            className={`${styles.sizeStockBadge} ${t.stock === 0 ? styles.noStock : t.stock < 3 ? styles.lowStock : styles.inStock}`}
+                                            onDoubleClick={(e) => {
+                                              e.stopPropagation();
+                                              setTempStockVal(t.stock);
+                                              setEditingStockId({ shoeId: item.id, sizeIdx: idx });
+                                            }}
+                                            title="Doble clic para editar"
+                                          >
+                                            {t.stock}
+                                          </span>
+                                        )}
+                                        <span className={styles.sizeStockLabel}>{t.stock === 1 ? 'par' : 'pares'}</span>
                                         <div className={styles.sizeStockContainer}>
                                           <button 
                                             className={styles.stockBtn} 
                                             onClick={(e) => { e.stopPropagation(); handleQuickStockChange(item, idx, -1); }}
                                           >-</button>
-                                          
-                                          {isEditingThis ? (
-                                            <input 
-                                              type="number"
-                                              className={styles.stockInput}
-                                              value={tempStockVal}
-                                              autoFocus
-                                              onFocus={(e) => e.target.select()}
-                                              onChange={(e) => setTempStockVal(Number(e.target.value))}
-                                              onBlur={() => saveInlineStock(item, idx)}
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter') saveInlineStock(item, idx);
-                                                if (e.key === 'Escape') setEditingStockId(null);
-                                              }}
-                                            />
-                                          ) : (
-                                            <span 
-                                              className={styles.sizeStock}
-                                              onDoubleClick={(e) => {
-                                                e.stopPropagation();
-                                                setTempStockVal(t.stock);
-                                                setEditingStockId({ shoeId: item.id, sizeIdx: idx });
-                                              }}
-                                              title="Doble clic para editar"
-                                            >
-                                              {t.stock} {t.stock === 1 ? 'par' : 'pares'}
-                                            </span>
-                                          )}
-
                                           <button 
                                             className={styles.stockBtn}
                                             onClick={(e) => { e.stopPropagation(); handleQuickStockChange(item, idx, 1); }}
