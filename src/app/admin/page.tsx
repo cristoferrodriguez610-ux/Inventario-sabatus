@@ -59,6 +59,8 @@ export default function AdminDashboard() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editingStockId, setEditingStockId] = useState<{shoeId: string, sizeIdx: number} | null>(null);
   const [tempStockVal, setTempStockVal] = useState<number>(0);
+  const [editingPrice, setEditingPrice] = useState<{shoeId: string, type: 'compra' | 'venta'} | null>(null);
+  const [tempPriceVal, setTempPriceVal] = useState<number>(0);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // Modal State
@@ -281,6 +283,37 @@ export default function AdminDashboard() {
     // Save to server
     const payload = { ...shoe };
     payload.tallas[sizeIdx].stock = newStock;
+
+    try {
+      await fetch("/api/inventory", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.error("Inline save error:", error);
+      fetchData(); // Revert on error
+    }
+  };
+
+  const saveInlinePrice = async (shoe: Shoe, type: 'compra' | 'venta') => {
+    const newPrice = Math.max(0, tempPriceVal);
+    
+    // Optimistic UI update
+    setInventory(inventory.map(item => {
+      if (item.id === shoe.id) {
+        if (type === 'compra') return { ...item, precioCompra: newPrice };
+        if (type === 'venta') return { ...item, precio: newPrice };
+      }
+      return item;
+    }));
+    
+    setEditingPrice(null);
+
+    // Save to server
+    const payload = { ...shoe };
+    if (type === 'compra') payload.precioCompra = newPrice;
+    if (type === 'venta') payload.precio = newPrice;
 
     try {
       await fetch("/api/inventory", {
@@ -536,8 +569,64 @@ export default function AdminDashboard() {
                             </div>
                           </td>
                           <td>{item.color}</td>
-                          <td>${item.precioCompra}</td>
-                          <td>${item.precio}</td>
+                          <td 
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setTempPriceVal(item.precioCompra);
+                              setEditingPrice({ shoeId: item.id, type: 'compra' });
+                            }}
+                            style={{ cursor: 'text' }}
+                            title="Doble clic para editar"
+                          >
+                            {editingPrice?.shoeId === item.id && editingPrice?.type === 'compra' ? (
+                              <input 
+                                type="number"
+                                className={styles.stockInput}
+                                style={{ width: '60px' }}
+                                value={tempPriceVal}
+                                autoFocus
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => setTempPriceVal(Number(e.target.value))}
+                                onBlur={() => saveInlinePrice(item, 'compra')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlinePrice(item, 'compra');
+                                  if (e.key === 'Escape') setEditingPrice(null);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              `$${item.precioCompra}`
+                            )}
+                          </td>
+                          <td
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setTempPriceVal(item.precio);
+                              setEditingPrice({ shoeId: item.id, type: 'venta' });
+                            }}
+                            style={{ cursor: 'text' }}
+                            title="Doble clic para editar"
+                          >
+                            {editingPrice?.shoeId === item.id && editingPrice?.type === 'venta' ? (
+                              <input 
+                                type="number"
+                                className={styles.stockInput}
+                                style={{ width: '60px' }}
+                                value={tempPriceVal}
+                                autoFocus
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => setTempPriceVal(Number(e.target.value))}
+                                onBlur={() => saveInlinePrice(item, 'venta')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlinePrice(item, 'venta');
+                                  if (e.key === 'Escape') setEditingPrice(null);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              `$${item.precio}`
+                            )}
+                          </td>
                           <td>{totalStock}</td>
                           <td>{getStockBadge(totalStock)}</td>
                           <td>
