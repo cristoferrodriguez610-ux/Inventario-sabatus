@@ -53,12 +53,13 @@
 }
 
 .logoImg {
-  width: 140px;
+  width: 90px;
   height: auto;
   display: block;
   object-fit: contain;
   mix-blend-mode: multiply;
   filter: contrast(1.1);
+  opacity: 0.85;
 }
 
 .nav {
