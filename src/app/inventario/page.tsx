@@ -82,7 +82,10 @@ export default function InventoryDashboard() {
     <div className={adminStyles.adminContainer}>
       <aside className={adminStyles.sidebar}>
         <div className={adminStyles.sidebarHeader}>
-          <img src="/logo.png" alt="Sabattus Logo" className={adminStyles.logoImg} />
+          <div className={adminStyles.logoText}>
+            <span className={adminStyles.logoName}>Sabattus</span>
+            <span className={adminStyles.logoTagline}>Luce y viste bien</span>
+          </div>
         </div>
 
         <nav className={adminStyles.nav}>

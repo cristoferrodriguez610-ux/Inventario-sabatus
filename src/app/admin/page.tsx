@@ -426,7 +426,10 @@ export default function AdminDashboard() {
 
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
         <div className={styles.sidebarHeader}>
-          <img src="/logo.png" alt="Sabattus Logo" className={styles.logoImg} />
+          <div className={styles.logoText}>
+            <span className={styles.logoName}>Sabattus</span>
+            <span className={styles.logoTagline}>Luce y viste bien</span>
+          </div>
           <button className={styles.closeSidebarBtn} onClick={() => setSidebarOpen(false)}>
             <X size={20} />
           </button>
