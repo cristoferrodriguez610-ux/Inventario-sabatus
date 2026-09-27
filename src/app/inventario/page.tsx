@@ -82,7 +82,7 @@ export default function InventoryDashboard() {
     <div className={adminStyles.adminContainer}>
       <aside className={adminStyles.sidebar}>
         <div className={adminStyles.sidebarHeader}>
-          <img src="/logo.png" alt="Sabattus Logo" style={{ width: '100%', maxWidth: '180px', objectFit: 'contain' }} />
+          <img src="/logo.png" alt="Sabattus Logo" className={adminStyles.logoImg} />
         </div>
 
         <nav className={adminStyles.nav}>
