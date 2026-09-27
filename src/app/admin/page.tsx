@@ -379,7 +379,7 @@ export default function AdminDashboard() {
   const getStockBadge = (stock: number) => {
     if (stock === 0) return <span className={`${styles.badge} ${styles.badgeDanger}`}>Agotado</span>;
     if (stock < 10) return <span className={`${styles.badge} ${styles.badgeWarning}`}>Stock Bajo</span>;
-    return <span className={`${styles.badge} ${styles.badgeSuccess}`}>En Stock</span>;
+    return <span className={`${styles.badge} ${styles.badgeSuccess}`}>Disponible</span>;
   };
 
   if (!isClient) return null;
@@ -489,7 +489,7 @@ export default function AdminDashboard() {
                     <th>Color</th>
                     <th>P. Compra</th>
                     <th>P. Venta</th>
-                    <th>Stock Total</th>
+                    <th>Pares Totales</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>

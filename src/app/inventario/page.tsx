@@ -73,7 +73,7 @@ export default function InventoryDashboard() {
   const getStockBadge = (stock: number) => {
     if (stock === 0) return <span className={`${adminStyles.badge} ${adminStyles.badgeDanger}`}>Agotado</span>;
     if (stock < 10) return <span className={`${adminStyles.badge} ${adminStyles.badgeWarning}`}>Stock Bajo</span>;
-    return <span className={`${adminStyles.badge} ${adminStyles.badgeSuccess}`}>En Stock</span>;
+    return <span className={`${adminStyles.badge} ${adminStyles.badgeSuccess}`}>Disponible</span>;
   };
 
   if (!isClient) return null;
@@ -132,7 +132,7 @@ export default function InventoryDashboard() {
                     <th>Producto (Código)</th>
                     <th>Color</th>
                     <th>Precio</th>
-                    <th>Stock Total</th>
+                    <th>Pares Totales</th>
                     <th>Estado</th>
                   </tr>
                 </thead>
