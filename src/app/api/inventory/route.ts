@@ -101,15 +101,15 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const sheets = await getGoogleSheets();
 
-    // Find the row index using the "Código" column (Column B) starting from row 3
+    // Find the row index using Column A (Nombre) and Column B (Código) starting from row 3
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Inventario!B3:B",
+      range: "Inventario!A3:B",
     });
 
     const rows = response.data.values || [];
-    // rows here will just be [[codigo1], [codigo2], ...]
-    const rowIndex = rows.findIndex(row => row[0] === (body.codigo || body.id));
+    // ID is defined in GET as: row[1] || row[0] || ""
+    const rowIndex = rows.findIndex(row => (row[1] || row[0] || "") === body.id);
 
     if (rowIndex === -1) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
@@ -163,14 +163,14 @@ export async function DELETE(request: Request) {
 
     const sheets = await getGoogleSheets();
 
-    // Find the row index using Column B (Código) starting from row 3
+    // Find the row index using Column A (Nombre) and Column B (Código) starting from row 3
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Inventario!B3:B",
+      range: "Inventario!A3:B",
     });
 
     const rows = response.data.values || [];
-    const rowIndex = rows.findIndex(row => row[0] === id);
+    const rowIndex = rows.findIndex(row => (row[1] || row[0] || "") === id);
 
     if (rowIndex === -1) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
