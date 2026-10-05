@@ -550,7 +550,6 @@ export default function AdminDashboard() {
                                   src={fixUrl(item.imageUrl)} 
                                   alt={item.nombre} 
                                   className={styles.shoeImage}
-                                  referrerPolicy="no-referrer"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setPreviewImage(item.imageUrl);
@@ -1089,7 +1088,6 @@ export default function AdminDashboard() {
             src={fixUrl(previewImage)} 
             alt="Preview" 
             className={styles.lightboxImg}
-            referrerPolicy="no-referrer"
             onClick={(e) => e.stopPropagation()} 
           />
         </div>

@@ -157,7 +157,6 @@ export default function InventoryDashboard() {
                                   src={fixUrl(item.imageUrl)} 
                                   alt={item.nombre} 
                                   className={adminStyles.shoeImage}
-                                  referrerPolicy="no-referrer"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setPreviewImage(item.imageUrl);
@@ -234,7 +233,6 @@ export default function InventoryDashboard() {
             src={fixUrl(previewImage)} 
             alt="Preview" 
             className={adminStyles.lightboxImg}
-            referrerPolicy="no-referrer"
             onClick={(e) => e.stopPropagation()} 
           />
         </div>
