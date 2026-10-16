@@ -151,6 +151,85 @@ export default function AdminDashboard() {
     return Math.random().toString(36).slice(-6).toUpperCase();
   };
 
+  // Helper to compress image to a lightweight format for instant reliable storage
+  const compressImage = (file: File, maxWidth = 380, maxHeight = 380, quality = 0.72): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(event.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+          resolve(compressedDataUrl);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const processAndUploadFile = async (file: File): Promise<string> => {
+    // 1. Generate lightweight canvas compressed image as safe fallback
+    let compressedFallback = "";
+    try {
+      compressedFallback = await compressImage(file, 380, 380, 0.72);
+    } catch (err) {
+      console.warn("Could not compress image:", err);
+    }
+
+    // 2. Try ImgBB if an API key is provided
+    const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
+    if (apiKey && apiKey !== "undefined" && apiKey.trim() !== "") {
+      try {
+        const fData = new FormData();
+        fData.append("image", file);
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+          method: "POST",
+          body: fData,
+        });
+        const data = await res.json();
+        if (data && data.success && data.data?.url) {
+          return data.data.url;
+        }
+      } catch (err) {
+        console.warn("ImgBB upload failed, falling back to compressed image:", err);
+      }
+    }
+
+    // 3. Return the compressed data URL (guaranteed to work without any API keys or network latency)
+    if (compressedFallback) {
+      return compressedFallback;
+    }
+
+    throw new Error("No se pudo procesar la imagen");
+  };
+
+
   const fetchData = async () => {
     setIsLoadingData(true);
     try {
@@ -1458,48 +1537,67 @@ export default function AdminDashboard() {
               <div className={styles.modalBody}>
                 <div className={styles.formGroup}>
                   <label className={styles.label}>Imagen del Calzado</label>
-                  <input 
-                    type="file" 
-                    accept="image/*"
-                    className="input" 
-                    disabled={isUploadingImage}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setIsUploadingImage(true);
-                        try {
-                          const fData = new FormData();
-                          fData.append("image", file);
-                          
-                          const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
-                          const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-                            method: 'POST',
-                            body: fData
-                          });
-                          
-                          const data = await response.json();
-                          if (data.success) {
-                            setFormData(prev => ({...prev, imageUrl: data.data.url}));
-                          } else {
-                            alert("Error al subir la imagen. Intenta de nuevo.");
+                  
+                  {formData.imageUrl ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', padding: '0.75rem', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                      <img 
+                        src={fixUrl(formData.imageUrl)} 
+                        alt="Preview" 
+                        style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--success)' }}>✓ Imagen lista</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setFormData(prev => ({ ...prev, imageUrl: "" }))}
+                          style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--danger)', fontSize: '0.75rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                        >
+                          Quitar foto
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      className="input" 
+                      disabled={isUploadingImage}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setIsUploadingImage(true);
+                          try {
+                            const url = await processAndUploadFile(file);
+                            setFormData(prev => ({ ...prev, imageUrl: url }));
+                          } catch (error) {
+                            console.error("Error procesando imagen:", error);
+                            alert("Error al procesar la imagen. Intenta de nuevo.");
+                          } finally {
+                            setIsUploadingImage(false);
                           }
-                        } catch (error) {
-                          console.error("Error subiendo imagen:", error);
-                          alert("Error al subir la imagen.");
-                        } finally {
-                          setIsUploadingImage(false);
                         }
-                      }
-                    }}
-                  />
-                  {isUploadingImage && <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Subiendo imagen a la nube, por favor espera...</p>}
-                  {formData.imageUrl && (
-                    <img 
-                      src={formData.imageUrl} 
-                      alt="Preview" 
-                      style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', marginTop: '0.5rem' }}
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      }}
                     />
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>O URL directa:</span>
+                      <input 
+                        type="url" 
+                        className="input"
+                        placeholder="https://ejemplo.com/foto.jpg"
+                        value={formData.imageUrl.startsWith("data:") ? "" : formData.imageUrl}
+                        onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                        style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                      />
+                    </div>
+                  </div>
+
+                  {isUploadingImage && (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '0.5rem' }}>
+                      <span className="animate-spin">⟳</span> Procesando imagen, por favor espera...
+                    </p>
                   )}
                 </div>
 
@@ -1684,48 +1782,67 @@ export default function AdminDashboard() {
               <div className={styles.modalBody}>
                 <div className={styles.formGroup}>
                   <label className={styles.label}>Imagen de la Camisa</label>
-                  <input 
-                    type="file" 
-                    accept="image/*"
-                    className="input" 
-                    disabled={isUploadingShirtImage}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setIsUploadingShirtImage(true);
-                        try {
-                          const fData = new FormData();
-                          fData.append("image", file);
-                          
-                          const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
-                          const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-                            method: 'POST',
-                            body: fData
-                          });
-                          
-                          const data = await response.json();
-                          if (data.success) {
-                            setShirtFormData(prev => ({...prev, imageUrl: data.data.url}));
-                          } else {
-                            alert("Error al subir la imagen.");
+                  
+                  {shirtFormData.imageUrl ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', padding: '0.75rem', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                      <img 
+                        src={fixUrl(shirtFormData.imageUrl)} 
+                        alt="Preview" 
+                        style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--success)' }}>✓ Imagen lista</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setShirtFormData(prev => ({ ...prev, imageUrl: "" }))}
+                          style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--danger)', fontSize: '0.75rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                        >
+                          Quitar foto
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      className="input" 
+                      disabled={isUploadingShirtImage}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setIsUploadingShirtImage(true);
+                          try {
+                            const url = await processAndUploadFile(file);
+                            setShirtFormData(prev => ({ ...prev, imageUrl: url }));
+                          } catch (error) {
+                            console.error("Error procesando imagen:", error);
+                            alert("Error al procesar la imagen. Intenta de nuevo.");
+                          } finally {
+                            setIsUploadingShirtImage(false);
                           }
-                        } catch (error) {
-                          console.error("Error subiendo imagen:", error);
-                          alert("Error al subir la imagen.");
-                        } finally {
-                          setIsUploadingShirtImage(false);
                         }
-                      }
-                    }}
-                  />
-                  {isUploadingShirtImage && <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Subiendo imagen a la nube, por favor espera...</p>}
-                  {shirtFormData.imageUrl && (
-                    <img 
-                      src={shirtFormData.imageUrl} 
-                      alt="Preview" 
-                      style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', marginTop: '0.5rem' }}
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      }}
                     />
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>O URL directa:</span>
+                      <input 
+                        type="url" 
+                        className="input"
+                        placeholder="https://ejemplo.com/foto.jpg"
+                        value={shirtFormData.imageUrl.startsWith("data:") ? "" : shirtFormData.imageUrl}
+                        onChange={(e) => setShirtFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                        style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                      />
+                    </div>
+                  </div>
+
+                  {isUploadingShirtImage && (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '0.5rem' }}>
+                      <span className="animate-spin">⟳</span> Procesando imagen, por favor espera...
+                    </p>
                   )}
                 </div>
 
