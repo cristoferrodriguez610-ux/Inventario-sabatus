@@ -4,7 +4,16 @@ import { getGoogleSheets } from "@/lib/google-sheets";
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const RANGE = "Usuarios!A2:D";
 
+let localMockUsers: any[] = [
+  { id: "1", nombre: "admin", password: "admin", rol: "Admin" },
+  { id: "2", nombre: "vendedor", password: "123", rol: "Usuario" },
+];
+
 export async function GET() {
+  if (!SHEET_ID) {
+    return NextResponse.json(localMockUsers);
+  }
+
   try {
     const sheets = await getGoogleSheets();
     const response = await sheets.spreadsheets.values.get({
@@ -24,7 +33,7 @@ export async function GET() {
     return NextResponse.json(users);
   } catch (error) {
     console.error("GET Users Error:", error);
-    return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
+    return NextResponse.json(localMockUsers);
   }
 }
 

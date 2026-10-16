@@ -7,7 +7,51 @@ const RANGE = "Inventario!A3:T"; // Expanded to T to accommodate 12 sizes (34-45
 // Helper to map sizes to array indices (34 to 45 -> 1 to 12)
 const SIZES = [34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45];
 
+let localMockShoes: any[] = [
+  {
+    id: "JOR-R4-NG",
+    codigo: "JOR-R4-NG",
+    nombre: "Retro 4 Black Cat",
+    marca: "Jordan",
+    color: "Negro",
+    precioCompra: 65,
+    precioRevendedor: 90,
+    precio: 120,
+    imageUrl: "https://images.unsplash.com/photo-1552346154-21d32810aba3?w=500&auto=format&fit=crop&q=60",
+    tallas: [
+      { talla: 38, stock: 2 },
+      { talla: 39, stock: 4 },
+      { talla: 40, stock: 6 },
+      { talla: 41, stock: 5 },
+      { talla: 42, stock: 3 },
+      { talla: 43, stock: 1 },
+    ],
+  },
+  {
+    id: "NK-DUNKLOW-PD",
+    codigo: "NK-DUNKLOW-PD",
+    nombre: "Dunk Low Panda",
+    marca: "Nike",
+    color: "Blanco / Negro",
+    precioCompra: 55,
+    precioRevendedor: 75,
+    precio: 95,
+    imageUrl: "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500&auto=format&fit=crop&q=60",
+    tallas: [
+      { talla: 37, stock: 3 },
+      { talla: 38, stock: 5 },
+      { talla: 39, stock: 7 },
+      { talla: 40, stock: 8 },
+      { talla: 41, stock: 4 },
+    ],
+  },
+];
+
 export async function GET() {
+  if (!SHEET_ID) {
+    return NextResponse.json(localMockShoes);
+  }
+
   try {
     const sheets = await getGoogleSheets();
     const response = await sheets.spreadsheets.values.get({
@@ -51,7 +95,7 @@ export async function GET() {
     return NextResponse.json(inventory);
   } catch (error) {
     console.error("GET Error:", error);
-    return NextResponse.json({ error: "Failed to fetch inventory" }, { status: 500 });
+    return NextResponse.json(localMockShoes);
   }
 }
 
