@@ -90,14 +90,14 @@ export default function AdminDashboard() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editingStockId, setEditingStockId] = useState<{shoeId: string, sizeIdx: number} | null>(null);
   const [tempStockVal, setTempStockVal] = useState<number>(0);
-  const [editingPrice, setEditingPrice] = useState<{shoeId: string, type: 'compra' | 'venta'} | null>(null);
+  const [editingPrice, setEditingPrice] = useState<{shoeId: string, type: 'compra' | 'revendedor' | 'venta'} | null>(null);
   const [tempPriceVal, setTempPriceVal] = useState<number>(0);
 
   // Inline edit states for Shirts
   const [expandedShirtRows, setExpandedShirtRows] = useState<string[]>([]);
   const [editingShirtStockId, setEditingShirtStockId] = useState<{shirtId: string, sizeIdx: number} | null>(null);
   const [tempShirtStockVal, setTempShirtStockVal] = useState<number>(0);
-  const [editingShirtPrice, setEditingShirtPrice] = useState<{shirtId: string, type: 'compra' | 'venta'} | null>(null);
+  const [editingShirtPrice, setEditingShirtPrice] = useState<{shirtId: string, type: 'compra' | 'revendedor' | 'venta'} | null>(null);
   const [tempShirtPriceVal, setTempShirtPriceVal] = useState<number>(0);
 
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -234,8 +234,8 @@ export default function AdminDashboard() {
     setIsLoadingData(true);
     try {
       const [invRes, shirtsRes, usersRes] = await Promise.all([
-        fetch("/api/inventory"),
-        fetch("/api/shirts"),
+        fetch("/api/inventory", { headers: { "x-user-role": "Admin" } }),
+        fetch("/api/shirts", { headers: { "x-user-role": "Admin" } }),
         fetch("/api/users")
       ]);
       if (invRes.ok) {
@@ -259,10 +259,19 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     setIsClient(true);
+    const role = typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
+    if (role && role !== "Admin") {
+      router.push("/inventario");
+      return;
+    }
     fetchData();
   }, []);
 
   const handleLogout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userName");
+    }
     router.push("/");
   };
 
@@ -434,13 +443,14 @@ export default function AdminDashboard() {
     }
   };
 
-  const saveInlinePrice = async (shoe: Shoe, type: 'compra' | 'venta') => {
+  const saveInlinePrice = async (shoe: Shoe, type: 'compra' | 'revendedor' | 'venta') => {
     const newPrice = Math.max(0, tempPriceVal);
     setInventory(inventory.map(item => {
       if (item.id === shoe.id) {
         return {
           ...item,
           precioCompra: type === 'compra' ? newPrice : item.precioCompra,
+          precioRevendedor: type === 'revendedor' ? newPrice : item.precioRevendedor,
           precio: type === 'venta' ? newPrice : item.precio,
         };
       }
@@ -450,6 +460,7 @@ export default function AdminDashboard() {
     setEditingPrice(null);
     const payload = { ...shoe };
     if (type === 'compra') payload.precioCompra = newPrice;
+    if (type === 'revendedor') payload.precioRevendedor = newPrice;
     if (type === 'venta') payload.precio = newPrice;
 
     try {
@@ -631,13 +642,14 @@ export default function AdminDashboard() {
     }
   };
 
-  const saveInlineShirtPrice = async (shirt: Shirt, type: 'compra' | 'venta') => {
+  const saveInlineShirtPrice = async (shirt: Shirt, type: 'compra' | 'revendedor' | 'venta') => {
     const newPrice = Math.max(0, tempShirtPriceVal);
     setShirtInventory(shirtInventory.map(item => {
       if (item.id === shirt.id) {
         return {
           ...item,
           precioCompra: type === 'compra' ? newPrice : item.precioCompra,
+          precioRevendedor: type === 'revendedor' ? newPrice : item.precioRevendedor,
           precio: type === 'venta' ? newPrice : item.precio,
         };
       }
@@ -647,6 +659,7 @@ export default function AdminDashboard() {
     setEditingShirtPrice(null);
     const payload = { ...shirt };
     if (type === 'compra') payload.precioCompra = newPrice;
+    if (type === 'revendedor') payload.precioRevendedor = newPrice;
     if (type === 'venta') payload.precio = newPrice;
 
     try {
@@ -959,7 +972,8 @@ export default function AdminDashboard() {
                     <th>Producto (Código)</th>
                     <th>Color</th>
                     <th>P. Compra</th>
-                    <th>P. Venta</th>
+                    <th>P. Revendedor</th>
+                    <th>P. Cliente</th>
                     <th>Pares Totales</th>
                     <th>Estado</th>
                     <th>Acciones</th>
@@ -1036,6 +1050,35 @@ export default function AdminDashboard() {
                               `$${item.precioCompra}`
                             )}
                           </td>
+                          <td 
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setTempPriceVal(item.precioRevendedor);
+                              setEditingPrice({ shoeId: item.id, type: 'revendedor' });
+                            }}
+                            style={{ cursor: 'text' }}
+                            title="Doble clic para editar"
+                          >
+                            {editingPrice?.shoeId === item.id && editingPrice?.type === 'revendedor' ? (
+                              <input 
+                                type="number" 
+                                className={styles.stockInput}
+                                style={{ width: '60px' }}
+                                value={tempPriceVal}
+                                autoFocus
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => setTempPriceVal(Number(e.target.value))}
+                                onBlur={() => saveInlinePrice(item, 'revendedor')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlinePrice(item, 'revendedor');
+                                  if (e.key === 'Escape') setEditingPrice(null);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              `$${item.precioRevendedor || 0}`
+                            )}
+                          </td>
                           <td
                             onDoubleClick={(e) => {
                               e.stopPropagation();
@@ -1091,7 +1134,7 @@ export default function AdminDashboard() {
                         </tr>
                         {isExpanded && (
                           <tr className={styles.expandedContent}>
-                            <td colSpan={8}>
+                            <td colSpan={9}>
                               <div className={styles.expandedInner}>
                                 <h4>Tallas Disponibles (Pares)</h4>
                                 <div className={styles.sizesGrid}>
@@ -1156,7 +1199,7 @@ export default function AdminDashboard() {
                   })}
                   {filteredShoes.length === 0 && (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "3rem" }}>
+                      <td colSpan={9} style={{ textAlign: "center", padding: "3rem" }}>
                         No se encontraron resultados en calzado
                       </td>
                     </tr>
@@ -1235,7 +1278,8 @@ export default function AdminDashboard() {
                     <th>Producto (Código)</th>
                     <th>Color</th>
                     <th>P. Compra</th>
-                    <th>P. Venta</th>
+                    <th>P. Revendedor</th>
+                    <th>P. Cliente</th>
                     <th>Unidades Totales</th>
                     <th>Estado</th>
                     <th>Acciones</th>
@@ -1312,6 +1356,35 @@ export default function AdminDashboard() {
                               `$${item.precioCompra}`
                             )}
                           </td>
+                          <td 
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setTempShirtPriceVal(item.precioRevendedor);
+                              setEditingShirtPrice({ shirtId: item.id, type: 'revendedor' });
+                            }}
+                            style={{ cursor: 'text' }}
+                            title="Doble clic para editar"
+                          >
+                            {editingShirtPrice?.shirtId === item.id && editingShirtPrice?.type === 'revendedor' ? (
+                              <input 
+                                type="number" 
+                                className={styles.stockInput}
+                                style={{ width: '60px' }}
+                                value={tempShirtPriceVal}
+                                autoFocus
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => setTempShirtPriceVal(Number(e.target.value))}
+                                onBlur={() => saveInlineShirtPrice(item, 'revendedor')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineShirtPrice(item, 'revendedor');
+                                  if (e.key === 'Escape') setEditingShirtPrice(null);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              `$${item.precioRevendedor || 0}`
+                            )}
+                          </td>
                           <td
                             onDoubleClick={(e) => {
                               e.stopPropagation();
@@ -1367,7 +1440,7 @@ export default function AdminDashboard() {
                         </tr>
                         {isExpanded && (
                           <tr className={styles.expandedContent}>
-                            <td colSpan={8}>
+                            <td colSpan={9}>
                               <div className={styles.expandedInner}>
                                 <h4>Tallas Disponibles (Unidades)</h4>
                                 <div className={styles.sizesGrid}>
@@ -1432,7 +1505,7 @@ export default function AdminDashboard() {
                   })}
                   {filteredShirts.length === 0 && (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "3rem" }}>
+                      <td colSpan={9} style={{ textAlign: "center", padding: "3rem" }}>
                         No se encontraron resultados en camisas
                       </td>
                     </tr>
@@ -1688,7 +1761,7 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>Precio Público ($) *</label>
+                    <label className={styles.label}>Precio Cliente ($) *</label>
                     <input 
                       type="number" 
                       className="input" 
@@ -1933,7 +2006,7 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>Precio Público ($) *</label>
+                    <label className={styles.label}>Precio Cliente ($) *</label>
                     <input 
                       type="number" 
                       className="input" 

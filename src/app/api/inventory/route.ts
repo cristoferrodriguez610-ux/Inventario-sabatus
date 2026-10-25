@@ -47,8 +47,14 @@ let localMockShoes: any[] = [
   },
 ];
 
-export async function GET() {
+export async function GET(request: Request) {
+  const role = request.headers.get("x-user-role");
+
   if (!SHEET_ID) {
+    if (role !== "Admin") {
+      const sanitized = localMockShoes.map(({ precioCompra, ...rest }) => rest);
+      return NextResponse.json(sanitized);
+    }
     return NextResponse.json(localMockShoes);
   }
 
@@ -92,9 +98,18 @@ export async function GET() {
       };
     }).filter(item => item.id !== "" && item.nombre.toLowerCase() !== "nombre"); // Filter out empty and header
 
+    if (role !== "Admin") {
+      const sanitized = inventory.map(({ precioCompra, ...rest }) => rest);
+      return NextResponse.json(sanitized);
+    }
+
     return NextResponse.json(inventory);
   } catch (error) {
     console.error("GET Error:", error);
+    if (role !== "Admin") {
+      const sanitized = localMockShoes.map(({ precioCompra, ...rest }) => rest);
+      return NextResponse.json(sanitized);
+    }
     return NextResponse.json(localMockShoes);
   }
 }

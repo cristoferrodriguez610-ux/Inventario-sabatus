@@ -125,8 +125,14 @@ async function ensureCamisasSheet(sheets: any) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const role = request.headers.get("x-user-role");
+
   if (!SHEET_ID) {
+    if (role !== "Admin") {
+      const sanitized = localMockShirts.map(({ precioCompra, ...rest }) => rest);
+      return NextResponse.json(sanitized);
+    }
     return NextResponse.json(localMockShirts);
   }
 
@@ -201,10 +207,19 @@ export async function GET() {
       })
       .filter((item) => item.id !== "" && item.nombre.toLowerCase() !== "nombre");
 
+    if (role !== "Admin") {
+      const sanitized = shirts.map(({ precioCompra, ...rest }) => rest);
+      return NextResponse.json(sanitized);
+    }
+
     return NextResponse.json(shirts);
   } catch (error) {
     console.error("GET Camisas Error:", error);
     // Return fallback mock data so dev / offline works smoothly
+    if (role !== "Admin") {
+      const sanitized = localMockShirts.map(({ precioCompra, ...rest }) => rest);
+      return NextResponse.json(sanitized);
+    }
     return NextResponse.json(localMockShirts);
   }
 }

@@ -16,6 +16,7 @@ type Shoe = {
   nombre: string;
   marca: string;
   color: string;
+  precioRevendedor?: number;
   precio: number;
   imageUrl: string;
   tallas: ShoeSize[];
@@ -32,6 +33,7 @@ type Shirt = {
   nombre: string;
   marca: string;
   color: string;
+  precioRevendedor?: number;
   precio: number;
   imageUrl: string;
   tallas: ShirtSize[];
@@ -53,11 +55,16 @@ export default function InventoryDashboard() {
 
   useEffect(() => {
     setIsClient(true);
+    const role = typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
     const fetchAllInventory = async () => {
       try {
         const [invRes, shirtsRes] = await Promise.all([
-          fetch("/api/inventory"),
-          fetch("/api/shirts"),
+          fetch("/api/inventory", {
+            headers: { "x-user-role": role || "Usuario" },
+          }),
+          fetch("/api/shirts", {
+            headers: { "x-user-role": role || "Usuario" },
+          }),
         ]);
         if (invRes.ok) {
           const data = await invRes.json();
@@ -77,6 +84,10 @@ export default function InventoryDashboard() {
   }, []);
 
   const handleLogout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userName");
+    }
     router.push("/");
   };
 
@@ -281,7 +292,8 @@ export default function InventoryDashboard() {
                     <th style={{ width: "40px" }}></th>
                     <th>Producto (Código)</th>
                     <th>Color</th>
-                    <th>Precio</th>
+                    <th>P. Revendedor</th>
+                    <th>P. Cliente</th>
                     <th>Pares Totales</th>
                     <th>Estado</th>
                   </tr>
@@ -356,13 +368,14 @@ export default function InventoryDashboard() {
                             </div>
                           </td>
                           <td>{item.color}</td>
+                          <td style={{ fontWeight: 600 }}>${item.precioRevendedor || 0}</td>
                           <td style={{ fontWeight: 600 }}>${item.precio}</td>
                           <td>{totalStock}</td>
                           <td>{getStockBadge(totalStock)}</td>
                         </tr>
                         {isExpanded && (
                           <tr className={adminStyles.expandedContent}>
-                            <td colSpan={6}>
+                            <td colSpan={7}>
                               <div className={adminStyles.expandedInner}>
                                 <h4>Tallas Disponibles (Pares)</h4>
                                 <div className={adminStyles.sizesGrid}>
@@ -404,7 +417,7 @@ export default function InventoryDashboard() {
                   })}
                   {filteredShoes.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: "3rem" }}>
+                      <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>
                         No se encontraron resultados
                       </td>
                     </tr>
@@ -452,7 +465,8 @@ export default function InventoryDashboard() {
                     <th style={{ width: "40px" }}></th>
                     <th>Producto (Código)</th>
                     <th>Color</th>
-                    <th>Precio</th>
+                    <th>P. Revendedor</th>
+                    <th>P. Cliente</th>
                     <th>Unidades Totales</th>
                     <th>Estado</th>
                   </tr>
@@ -527,13 +541,14 @@ export default function InventoryDashboard() {
                             </div>
                           </td>
                           <td>{item.color}</td>
+                          <td style={{ fontWeight: 600 }}>${item.precioRevendedor || 0}</td>
                           <td style={{ fontWeight: 600 }}>${item.precio}</td>
                           <td>{totalStock}</td>
                           <td>{getStockBadge(totalStock)}</td>
                         </tr>
                         {isExpanded && (
                           <tr className={adminStyles.expandedContent}>
-                            <td colSpan={6}>
+                            <td colSpan={7}>
                               <div className={adminStyles.expandedInner}>
                                 <h4>Tallas Disponibles (Unidades)</h4>
                                 <div className={adminStyles.sizesGrid}>
@@ -575,7 +590,7 @@ export default function InventoryDashboard() {
                   })}
                   {filteredShirts.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: "3rem" }}>
+                      <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>
                         No se encontraron resultados en camisas
                       </td>
                     </tr>
