@@ -17,7 +17,8 @@ import {
   Menu,
   Shirt,
   SportShoe,
-  AlertCircle
+  AlertCircle,
+  DollarSign
 } from "lucide-react";
 import styles from "./page.module.css";
 
@@ -764,7 +765,28 @@ export default function AdminDashboard() {
   const getTotalShirtStock = (tallas: ShirtSize[]) => (tallas || []).reduce((sum, t) => sum + (t.stock || 0), 0);
 
   const totalAllShoesUnits = inventory.reduce((acc, s) => acc + getTotalShoeStock(s.tallas), 0);
+  const totalShoePatrimonioCompra = inventory.reduce((acc, s) => {
+    const stock = getTotalShoeStock(s.tallas);
+    return acc + (stock * (Number(s.precioCompra) || 0));
+  }, 0);
+  const totalShoePatrimonioVenta = inventory.reduce((acc, s) => {
+    const stock = getTotalShoeStock(s.tallas);
+    return acc + (stock * (Number(s.precio) || 0));
+  }, 0);
+
   const totalAllShirtsUnits = shirtInventory.reduce((acc, s) => acc + getTotalShirtStock(s.tallas), 0);
+  const totalShirtPatrimonioCompra = shirtInventory.reduce((acc, s) => {
+    const stock = getTotalShirtStock(s.tallas);
+    return acc + (stock * (Number(s.precioCompra) || 0));
+  }, 0);
+  const totalShirtPatrimonioVenta = shirtInventory.reduce((acc, s) => {
+    const stock = getTotalShirtStock(s.tallas);
+    return acc + (stock * (Number(s.precio) || 0));
+  }, 0);
+
+  const formatMoney = (amount: number) => {
+    return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   const fixUrl = (url: string) => url ? url.replace(/^http:\/\//, 'https://') : url;
 
@@ -937,6 +959,28 @@ export default function AdminDashboard() {
                 <div className={styles.statInfo}>
                   <span className={styles.statLabel}>Total Pares</span>
                   <span className={styles.statValue}>{totalAllShoesUnits}</span>
+                </div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon} style={{ color: 'var(--success)' }}>
+                  <DollarSign size={24} />
+                </div>
+                <div className={styles.statInfo}>
+                  <span className={styles.statLabel}>Patrimonio (Compra)</span>
+                  <span className={`${styles.statValue} ${styles.statValueCurrency}`}>
+                    {formatMoney(totalShoePatrimonioCompra)}
+                  </span>
+                </div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon} style={{ color: 'var(--text-primary)' }}>
+                  <DollarSign size={24} />
+                </div>
+                <div className={styles.statInfo}>
+                  <span className={styles.statLabel}>Patrimonio (Cliente)</span>
+                  <span className={`${styles.statValue} ${styles.statValueCurrency}`}>
+                    {formatMoney(totalShoePatrimonioVenta)}
+                  </span>
                 </div>
               </div>
               <div className={styles.statCard}>
@@ -1136,7 +1180,17 @@ export default function AdminDashboard() {
                           <tr className={styles.expandedContent}>
                             <td colSpan={9}>
                               <div className={styles.expandedInner}>
-                                <h4>Tallas Disponibles (Pares)</h4>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                  <h4 style={{ margin: 0 }}>Tallas Disponibles (Pares)</h4>
+                                  <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.85rem' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>
+                                      Patrimonio Compra: <strong style={{ color: 'var(--text-primary)' }}>{formatMoney(totalStock * (item.precioCompra || 0))}</strong>
+                                    </span>
+                                    <span style={{ color: 'var(--text-secondary)' }}>
+                                      Patrimonio Cliente: <strong style={{ color: 'var(--text-primary)' }}>{formatMoney(totalStock * (item.precio || 0))}</strong>
+                                    </span>
+                                  </div>
+                                </div>
                                 <div className={styles.sizesGrid}>
                                   {item.tallas.length > 0 ? (
                                     item.tallas.map((t, idx) => {
@@ -1243,6 +1297,28 @@ export default function AdminDashboard() {
                 <div className={styles.statInfo}>
                   <span className={styles.statLabel}>Total Unidades</span>
                   <span className={styles.statValue}>{totalAllShirtsUnits}</span>
+                </div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon} style={{ color: 'var(--success)' }}>
+                  <DollarSign size={24} />
+                </div>
+                <div className={styles.statInfo}>
+                  <span className={styles.statLabel}>Patrimonio (Compra)</span>
+                  <span className={`${styles.statValue} ${styles.statValueCurrency}`}>
+                    {formatMoney(totalShirtPatrimonioCompra)}
+                  </span>
+                </div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon} style={{ color: 'var(--text-primary)' }}>
+                  <DollarSign size={24} />
+                </div>
+                <div className={styles.statInfo}>
+                  <span className={styles.statLabel}>Patrimonio (Cliente)</span>
+                  <span className={`${styles.statValue} ${styles.statValueCurrency}`}>
+                    {formatMoney(totalShirtPatrimonioVenta)}
+                  </span>
                 </div>
               </div>
               <div className={styles.statCard}>
@@ -1442,7 +1518,17 @@ export default function AdminDashboard() {
                           <tr className={styles.expandedContent}>
                             <td colSpan={9}>
                               <div className={styles.expandedInner}>
-                                <h4>Tallas Disponibles (Unidades)</h4>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                  <h4 style={{ margin: 0 }}>Tallas Disponibles (Unidades)</h4>
+                                  <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.85rem' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>
+                                      Patrimonio Compra: <strong style={{ color: 'var(--text-primary)' }}>{formatMoney(totalStock * (item.precioCompra || 0))}</strong>
+                                    </span>
+                                    <span style={{ color: 'var(--text-secondary)' }}>
+                                      Patrimonio Cliente: <strong style={{ color: 'var(--text-primary)' }}>{formatMoney(totalStock * (item.precio || 0))}</strong>
+                                    </span>
+                                  </div>
+                                </div>
                                 <div className={styles.sizesGrid}>
                                   {item.tallas?.length > 0 ? (
                                     item.tallas.map((t, idx) => {

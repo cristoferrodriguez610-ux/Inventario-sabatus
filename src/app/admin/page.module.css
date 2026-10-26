@@ -221,6 +221,11 @@
   letter-spacing: 0.02em;
 }
 
+.statValueCurrency {
+  font-size: clamp(1.2rem, 1.6vw, 1.65rem);
+  white-space: nowrap;
+}
+
 /* ─── Table ──────────────────────────────────────────── */
 .tableContainer {
   background-color: var(--bg-primary);
@@ -873,6 +878,10 @@
 
   .statValue {
     font-size: 1.5rem;
+  }
+
+  .statValueCurrency {
+    font-size: 1.15rem;
   }
 
   /* Table → scroll horizontal */
