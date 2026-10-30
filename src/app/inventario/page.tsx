@@ -15,6 +15,13 @@ import {
 import adminStyles from "../admin/page.module.css";
 import { filterAndRankProducts } from "@/lib/search";
 import { ProductImage, ImageLightbox } from "@/components/ProductImage";
+import {
+  AUTH_TOKEN_KEY,
+  AUTH_VERSION_KEY,
+  CURRENT_SESSION_VERSION,
+  USER_NAME_KEY,
+  USER_ROLE_KEY,
+} from "@/lib/auth-constants";
 
 type ShoeSize = {
   talla: number;
@@ -70,6 +77,7 @@ export default function InventoryDashboard() {
   const [inventory, setInventory] = useState<Shoe[]>([]);
   const [shirtInventory, setShirtInventory] = useState<Shirt[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [expandedShirtRows, setExpandedShirtRows] = useState<string[]>([]);
@@ -77,15 +85,28 @@ export default function InventoryDashboard() {
 
   useEffect(() => {
     setIsClient(true);
-    const role = typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
-    const fetchAllInventory = async () => {
+
+    const token = typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+    const version = typeof window !== "undefined" ? localStorage.getItem(AUTH_VERSION_KEY) : null;
+    const role = typeof window !== "undefined" ? localStorage.getItem(USER_ROLE_KEY) : null;
+    const username = typeof window !== "undefined" ? localStorage.getItem(USER_NAME_KEY) : null;
+
+    if (!token || version !== CURRENT_SESSION_VERSION || !role || !username) {
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+      }
+      router.replace("/");
+      return;
+    }
+
+    const fetchAllInventory = async (currentRole: string) => {
       try {
         const [invRes, shirtsRes] = await Promise.all([
           fetch("/api/inventory", {
-            headers: { "x-user-role": role || "Usuario" },
+            headers: { "x-user-role": currentRole },
           }),
           fetch("/api/shirts", {
-            headers: { "x-user-role": role || "Usuario" },
+            headers: { "x-user-role": currentRole },
           }),
         ]);
         if (invRes.ok) {
@@ -102,13 +123,32 @@ export default function InventoryDashboard() {
         setIsLoading(false);
       }
     };
-    fetchAllInventory();
+
+    // Verify session validity with server
+    fetch("/api/auth/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, username, role }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Invalid session");
+        const data = await res.json();
+        if (!data.valid) throw new Error("Unauthorized");
+        setIsAuthenticated(true);
+        fetchAllInventory(role);
+      })
+      .catch((err) => {
+        console.warn("Session expired or credentials changed:", err);
+        if (typeof window !== "undefined") {
+          localStorage.clear();
+        }
+        router.replace("/");
+      });
   }, []);
 
   const handleLogout = () => {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userName");
+      localStorage.clear();
     }
     router.push("/");
   };
@@ -160,7 +200,14 @@ export default function InventoryDashboard() {
     );
   };
 
-  if (!isClient) return null;
+  if (!isClient || !isAuthenticated) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'var(--bg-main)', gap: '1rem' }}>
+        <span className="animate-spin" style={{ fontSize: '2rem' }}>⟳</span>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Verificando sesión...</p>
+      </div>
+    );
+  }
 
   return (
     <div className={adminStyles.adminContainer}>

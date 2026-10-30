@@ -1,39 +1,12 @@
 import { NextResponse } from "next/server";
 import { getGoogleSheets } from "@/lib/google-sheets";
+import { fetchUsersFromSource } from "@/lib/auth";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
-const RANGE = "Usuarios!A2:D";
-
-let localMockUsers: any[] = [
-  { id: "admin_master", nombre: "admin", password: "Sabattus#Admin2026", rol: "Admin" },
-];
 
 export async function GET() {
-  if (!SHEET_ID) {
-    return NextResponse.json(localMockUsers);
-  }
-
-  try {
-    const sheets = await getGoogleSheets();
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: RANGE,
-    });
-
-    const rows = response.data.values || [];
-
-    const users = rows.map((row) => ({
-      id: row[0] || "",
-      nombre: row[1] || "",
-      password: row[2] || "",
-      rol: row[3] || "Usuario",
-    })).filter(u => u.id !== ""); // Filter out empty rows
-
-    return NextResponse.json(users);
-  } catch (error) {
-    console.error("GET Users Error:", error);
-    return NextResponse.json(localMockUsers);
-  }
+  const users = await fetchUsersFromSource();
+  return NextResponse.json(users);
 }
 
 export async function POST(request: Request) {

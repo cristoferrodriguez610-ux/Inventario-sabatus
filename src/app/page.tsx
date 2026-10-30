@@ -4,6 +4,13 @@ import { useState } from "react";
 import { LogIn, Eye, EyeOff } from "lucide-react";
 import styles from "./page.module.css";
 import { useRouter } from "next/navigation";
+import {
+  AUTH_TOKEN_KEY,
+  AUTH_VERSION_KEY,
+  CURRENT_SESSION_VERSION,
+  USER_NAME_KEY,
+  USER_ROLE_KEY,
+} from "@/lib/auth-constants";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -19,33 +26,30 @@ export default function Login() {
     setError("");
 
     try {
-      // Fetch users from API (Google Sheets)
-      const res = await fetch("/api/users");
-      if (!res.ok) {
-        throw new Error("Failed to fetch users");
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setError(data.error || "Usuario o contraseña incorrectos");
+        return;
       }
-      
-      const users: any[] = await res.json();
 
-      // Check if user exists (case-insensitive username match)
-      const user = users.find(
-        (u) =>
-          u.nombre.toLowerCase().trim() === username.toLowerCase().trim() &&
-          u.password === password
-      );
+      if (typeof window !== "undefined") {
+        localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+        localStorage.setItem(AUTH_VERSION_KEY, data.sessionVersion || CURRENT_SESSION_VERSION);
+        localStorage.setItem(USER_ROLE_KEY, data.user.rol);
+        localStorage.setItem(USER_NAME_KEY, data.user.nombre);
+      }
 
-      if (user) {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("userRole", user.rol);
-          localStorage.setItem("userName", user.nombre);
-        }
-        if (user.rol === "Admin") {
-          router.push("/admin");
-        } else {
-          router.push("/inventario");
-        }
+      if (data.user.rol === "Admin") {
+        router.push("/admin");
       } else {
-        setError("Usuario o contraseña incorrectos");
+        router.push("/inventario");
       }
     } catch (err) {
       console.error(err);

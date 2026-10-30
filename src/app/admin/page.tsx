@@ -23,6 +23,13 @@ import {
 import styles from "./page.module.css";
 import { filterAndRankProducts } from "@/lib/search";
 import { ProductImage, ImageLightbox } from "@/components/ProductImage";
+import {
+  AUTH_TOKEN_KEY,
+  AUTH_VERSION_KEY,
+  CURRENT_SESSION_VERSION,
+  USER_NAME_KEY,
+  USER_ROLE_KEY,
+} from "@/lib/auth-constants";
 
 function formatProductTitle(marca?: string, nombre?: string): string {
   const m = (marca || "").trim();
@@ -97,6 +104,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   
   const [isClient, setIsClient] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   
   // Inline edit states for Shoes
@@ -288,18 +296,50 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     setIsClient(true);
-    const role = typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
-    if (role && role !== "Admin") {
-      router.push("/inventario");
+
+    const token = typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+    const version = typeof window !== "undefined" ? localStorage.getItem(AUTH_VERSION_KEY) : null;
+    const role = typeof window !== "undefined" ? localStorage.getItem(USER_ROLE_KEY) : null;
+    const username = typeof window !== "undefined" ? localStorage.getItem(USER_NAME_KEY) : null;
+
+    // Immediate kick out for any device that has no token, wrong version, or not Admin
+    if (!token || version !== CURRENT_SESSION_VERSION || role !== "Admin" || !username) {
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+      }
+      router.replace("/");
       return;
     }
-    fetchData();
+
+    // Verify cryptographic token against current user credentials on server
+    fetch("/api/auth/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, username, role }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("Invalid session");
+        }
+        const data = await res.json();
+        if (!data.valid || data.user?.rol !== "Admin") {
+          throw new Error("Unauthorized");
+        }
+        setIsAuthenticated(true);
+        fetchData();
+      })
+      .catch((err) => {
+        console.warn("Session expired or credentials changed:", err);
+        if (typeof window !== "undefined") {
+          localStorage.clear();
+        }
+        router.replace("/");
+      });
   }, []);
 
   const handleLogout = () => {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userName");
+      localStorage.clear();
     }
     router.push("/");
   };
@@ -733,6 +773,28 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
+        // If current admin modified their own credentials, refresh their active session token
+        const currentUsername = typeof window !== "undefined" ? localStorage.getItem(USER_NAME_KEY) : null;
+        if (currentUsername && currentUsername.toLowerCase() === userFormData.nombre.toLowerCase().trim()) {
+          try {
+            const reloginRes = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username: userFormData.nombre, password: userFormData.password }),
+            });
+            if (reloginRes.ok) {
+              const reloginData = await reloginRes.json();
+              if (reloginData.success && reloginData.token) {
+                localStorage.setItem(AUTH_TOKEN_KEY, reloginData.token);
+                localStorage.setItem(AUTH_VERSION_KEY, reloginData.sessionVersion || CURRENT_SESSION_VERSION);
+                localStorage.setItem(USER_ROLE_KEY, reloginData.user.rol);
+                localStorage.setItem(USER_NAME_KEY, reloginData.user.nombre);
+              }
+            }
+          } catch (e) {
+            console.warn("Could not refresh token after user update:", e);
+          }
+        }
         await fetchData();
         closeUserModal();
       } else {
@@ -810,7 +872,14 @@ export default function AdminDashboard() {
     return <span className={`${styles.badge} ${styles.badgeSuccess}`}>Disponible</span>;
   };
 
-  if (!isClient) return null;
+  if (!isClient || !isAuthenticated) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'var(--bg-main)', gap: '1rem' }}>
+        <span className="animate-spin" style={{ fontSize: '2rem' }}>⟳</span>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Verificando credenciales de administrador...</p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.adminContainer}>
