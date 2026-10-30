@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useDeferredValue } from "react";
 import { useRouter } from "next/navigation";
 import {
   Package,
@@ -21,6 +21,17 @@ import {
   DollarSign
 } from "lucide-react";
 import styles from "./page.module.css";
+import { filterAndRankProducts } from "@/lib/search";
+import { ProductImage, ImageLightbox } from "@/components/ProductImage";
+
+function formatProductTitle(marca?: string, nombre?: string): string {
+  const m = (marca || "").trim();
+  const n = (nombre || "").trim();
+  if (!m) return n;
+  if (!n) return m;
+  if (n.toLowerCase().startsWith(m.toLowerCase())) return n;
+  return `${m} ${n}`;
+}
 
 type ShoeSize = {
   talla: number;
@@ -77,6 +88,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<"shoes" | "shirts" | "users" | "settings">("shoes");
   const [inventorySubmenuOpen, setInventorySubmenuOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Data states
@@ -153,71 +165,87 @@ export default function AdminDashboard() {
   };
 
   // Helper to compress image to a lightweight format for instant reliable storage
-  const compressImage = (file: File, maxWidth = 380, maxHeight = 380, quality = 0.72): Promise<string> => {
+  const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.8): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          let width = img.width;
-          let height = img.height;
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        let width = img.width;
+        let height = img.height;
 
-          if (width > height) {
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width);
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = Math.round((width * maxHeight) / height);
-              height = maxHeight;
-            }
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
           }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
 
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            resolve(event.target?.result as string);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
-          resolve(compressedDataUrl);
-        };
-        img.onerror = (err) => reject(err);
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas context unavailable"));
+          return;
+        }
+        // Fill white background so transparent PNGs don't turn black in JPEG
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(compressedDataUrl);
       };
-      reader.onerror = (err) => reject(err);
+      img.onerror = (err) => {
+        URL.revokeObjectURL(objectUrl);
+        reject(err);
+      };
+      img.src = objectUrl;
     });
   };
 
   const processAndUploadFile = async (file: File): Promise<string> => {
-    // 1. Generate lightweight canvas compressed image as safe fallback
+    // 1. Generate lightweight canvas compressed images (one 800px for cloud, one 380px as inline fallback)
+    let compressedForUpload = "";
     let compressedFallback = "";
     try {
-      compressedFallback = await compressImage(file, 380, 380, 0.72);
+      [compressedForUpload, compressedFallback] = await Promise.all([
+        compressImage(file, 800, 800, 0.8),
+        compressImage(file, 380, 380, 0.72),
+      ]);
     } catch (err) {
       console.warn("Could not compress image:", err);
     }
 
-    // 2. Try ImgBB if an API key is provided
+    // 2. Try ImgBB if an API key is provided, uploading the compressed image with a timeout
     const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
     if (apiKey && apiKey !== "undefined" && apiKey.trim() !== "") {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
       try {
         const fData = new FormData();
-        fData.append("image", file);
+        if (compressedForUpload && compressedForUpload.includes(",")) {
+          fData.append("image", compressedForUpload.split(",")[1]);
+        } else {
+          fData.append("image", file);
+        }
         const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
           method: "POST",
           body: fData,
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         const data = await res.json();
-        if (data && data.success && data.data?.url) {
-          return data.data.url;
+        if (data && data.success && (data.data?.display_url || data.data?.url)) {
+          return data.data.display_url || data.data.url;
         }
       } catch (err) {
+        clearTimeout(timeoutId);
         console.warn("ImgBB upload failed, falling back to compressed image:", err);
       }
     }
@@ -393,17 +421,14 @@ export default function AdminDashboard() {
 
   const handleQuickStockChange = async (shoe: Shoe, sizeIdx: number, delta: number) => {
     const newStock = Math.max(0, shoe.tallas[sizeIdx].stock + delta);
-    setInventory(inventory.map(item => {
-      if (item.id === shoe.id) {
-        const newTallas = [...item.tallas];
-        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: newStock };
-        return { ...item, tallas: newTallas };
-      }
-      return item;
-    }));
+    const updatedTallas = shoe.tallas.map((t, i) =>
+      i === sizeIdx ? { ...t, stock: newStock } : t
+    );
+    setInventory(inventory.map(item =>
+      item.id === shoe.id ? { ...item, tallas: updatedTallas } : item
+    ));
 
-    const payload = { ...shoe };
-    payload.tallas[sizeIdx].stock = newStock;
+    const payload = { ...shoe, tallas: updatedTallas };
 
     try {
       await fetch("/api/inventory", {
@@ -419,18 +444,15 @@ export default function AdminDashboard() {
 
   const saveInlineStock = async (shoe: Shoe, sizeIdx: number) => {
     const newStock = Math.max(0, tempStockVal);
-    setInventory(inventory.map(item => {
-      if (item.id === shoe.id) {
-        const newTallas = [...item.tallas];
-        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: newStock };
-        return { ...item, tallas: newTallas };
-      }
-      return item;
-    }));
+    const updatedTallas = shoe.tallas.map((t, i) =>
+      i === sizeIdx ? { ...t, stock: newStock } : t
+    );
+    setInventory(inventory.map(item =>
+      item.id === shoe.id ? { ...item, tallas: updatedTallas } : item
+    ));
     
     setEditingStockId(null);
-    const payload = { ...shoe };
-    payload.tallas[sizeIdx].stock = newStock;
+    const payload = { ...shoe, tallas: updatedTallas };
 
     try {
       await fetch("/api/inventory", {
@@ -592,17 +614,14 @@ export default function AdminDashboard() {
 
   const handleQuickShirtStockChange = async (shirt: Shirt, sizeIdx: number, delta: number) => {
     const newStock = Math.max(0, shirt.tallas[sizeIdx].stock + delta);
-    setShirtInventory(shirtInventory.map(item => {
-      if (item.id === shirt.id) {
-        const newTallas = [...item.tallas];
-        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: newStock };
-        return { ...item, tallas: newTallas };
-      }
-      return item;
-    }));
+    const updatedTallas = shirt.tallas.map((t, i) =>
+      i === sizeIdx ? { ...t, stock: newStock } : t
+    );
+    setShirtInventory(shirtInventory.map(item =>
+      item.id === shirt.id ? { ...item, tallas: updatedTallas } : item
+    ));
 
-    const payload = { ...shirt };
-    payload.tallas[sizeIdx].stock = newStock;
+    const payload = { ...shirt, tallas: updatedTallas };
 
     try {
       await fetch("/api/shirts", {
@@ -618,18 +637,15 @@ export default function AdminDashboard() {
 
   const saveInlineShirtStock = async (shirt: Shirt, sizeIdx: number) => {
     const newStock = Math.max(0, tempShirtStockVal);
-    setShirtInventory(shirtInventory.map(item => {
-      if (item.id === shirt.id) {
-        const newTallas = [...item.tallas];
-        newTallas[sizeIdx] = { ...newTallas[sizeIdx], stock: newStock };
-        return { ...item, tallas: newTallas };
-      }
-      return item;
-    }));
+    const updatedTallas = shirt.tallas.map((t, i) =>
+      i === sizeIdx ? { ...t, stock: newStock } : t
+    );
+    setShirtInventory(shirtInventory.map(item =>
+      item.id === shirt.id ? { ...item, tallas: updatedTallas } : item
+    ));
     
     setEditingShirtStockId(null);
-    const payload = { ...shirt };
-    payload.tallas[sizeIdx].stock = newStock;
+    const payload = { ...shirt, tallas: updatedTallas };
 
     try {
       await fetch("/api/shirts", {
@@ -749,16 +765,14 @@ export default function AdminDashboard() {
   // ----------------------------------------------------
   // HELPERS & FILTERING
   // ----------------------------------------------------
-  const filteredShoes = inventory.filter((item) =>
-    item.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.marca?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredShoes = useMemo(
+    () => filterAndRankProducts(inventory, deferredSearchQuery),
+    [inventory, deferredSearchQuery]
   );
 
-  const filteredShirts = shirtInventory.filter((item) =>
-    item.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.marca?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredShirts = useMemo(
+    () => filterAndRankProducts(shirtInventory, deferredSearchQuery),
+    [shirtInventory, deferredSearchQuery]
   );
 
   const getTotalShoeStock = (tallas: ShoeSize[]) => (tallas || []).reduce((sum, t) => sum + (t.stock || 0), 0);
@@ -998,16 +1012,45 @@ export default function AdminDashboard() {
 
             <div className={styles.tableContainer}>
               <div className={styles.tableHeader}>
-                <div className={styles.searchBox}>
+                <div className={styles.searchBox} style={{ width: "min(100%, 380px)" }}>
                   <Search className={styles.searchIcon} size={18} />
                   <input
                     type="text"
-                    placeholder="Buscar calzado (nombre, marca, código)..."
+                    placeholder="Buscar tenis (nombre, marca, color, código)..."
                     className={`input ${styles.searchInput}`}
+                    style={{ paddingRight: searchQuery ? "2.25rem" : undefined }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      aria-label="Limpiar búsqueda"
+                      style={{
+                        position: "absolute",
+                        right: "0.6rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0.2rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
+                {searchQuery.trim() && (
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+                    {filteredShoes.length} {filteredShoes.length === 1 ? "resultado" : "resultados"}
+                  </span>
+                )}
               </div>
               <table>
                 <thead>
@@ -1027,6 +1070,7 @@ export default function AdminDashboard() {
                   {filteredShoes.map((item) => {
                     const isExpanded = expandedRows.includes(item.id);
                     const totalStock = getTotalShoeStock(item.tallas);
+                    const titleText = formatProductTitle(item.marca, item.nombre);
                     
                     return (
                       <React.Fragment key={item.id}>
@@ -1039,27 +1083,16 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             <div className={styles.productCell}>
-                              {item.imageUrl ? (
-                                <img 
-                                  src={fixUrl(item.imageUrl)} 
-                                  alt={item.nombre} 
-                                  className={styles.shoeImage}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPreviewImage(item.imageUrl);
-                                  }}
-                                  style={{ cursor: 'pointer' }}
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove(styles.hiddenPlaceholder);
-                                  }}
-                                />
-                              ) : null}
-                              <div className={`${styles.shoeImagePlaceholder} ${item.imageUrl ? styles.hiddenPlaceholder : ''}`}>
-                                👟
-                              </div>
+                              <ProductImage
+                                src={item.imageUrl}
+                                alt={titleText}
+                                fallbackEmoji="👟"
+                                imageClassName={styles.shoeImage}
+                                placeholderClassName={styles.shoeImagePlaceholder}
+                                onPreview={(url) => setPreviewImage(url)}
+                              />
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{item.marca} {item.nombre}</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{titleText}</span>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.codigo}</span>
                               </div>
                             </div>
@@ -1336,16 +1369,45 @@ export default function AdminDashboard() {
 
             <div className={styles.tableContainer}>
               <div className={styles.tableHeader}>
-                <div className={styles.searchBox}>
+                <div className={styles.searchBox} style={{ width: "min(100%, 380px)" }}>
                   <Search className={styles.searchIcon} size={18} />
                   <input
                     type="text"
-                    placeholder="Buscar camisas (nombre, marca, código)..."
+                    placeholder="Buscar camisas (nombre, marca, color, código)..."
                     className={`input ${styles.searchInput}`}
+                    style={{ paddingRight: searchQuery ? "2.25rem" : undefined }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      aria-label="Limpiar búsqueda"
+                      style={{
+                        position: "absolute",
+                        right: "0.6rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0.2rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
+                {searchQuery.trim() && (
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+                    {filteredShirts.length} {filteredShirts.length === 1 ? "resultado" : "resultados"}
+                  </span>
+                )}
               </div>
               <table>
                 <thead>
@@ -1365,6 +1427,7 @@ export default function AdminDashboard() {
                   {filteredShirts.map((item) => {
                     const isExpanded = expandedShirtRows.includes(item.id);
                     const totalStock = getTotalShirtStock(item.tallas);
+                    const titleText = formatProductTitle(item.marca, item.nombre);
                     
                     return (
                       <React.Fragment key={item.id}>
@@ -1377,27 +1440,16 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             <div className={styles.productCell}>
-                              {item.imageUrl ? (
-                                <img 
-                                  src={fixUrl(item.imageUrl)} 
-                                  alt={item.nombre} 
-                                  className={styles.shoeImage}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPreviewImage(item.imageUrl);
-                                  }}
-                                  style={{ cursor: 'pointer' }}
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove(styles.hiddenPlaceholder);
-                                  }}
-                                />
-                              ) : null}
-                              <div className={`${styles.shoeImagePlaceholder} ${item.imageUrl ? styles.hiddenPlaceholder : ''}`}>
-                                👕
-                              </div>
+                              <ProductImage
+                                src={item.imageUrl}
+                                alt={titleText}
+                                fallbackEmoji="👕"
+                                imageClassName={styles.shoeImage}
+                                placeholderClassName={styles.shoeImagePlaceholder}
+                                onPreview={(url) => setPreviewImage(url)}
+                              />
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{item.marca} {item.nombre}</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{titleText}</span>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.codigo}</span>
                               </div>
                             </div>
@@ -2276,19 +2328,13 @@ export default function AdminDashboard() {
       )}
 
       {/* Lightbox Modal */}
-      {previewImage && (
-        <div className={styles.lightboxOverlay} onClick={() => setPreviewImage(null)}>
-          <button className={styles.lightboxClose} onClick={() => setPreviewImage(null)}>
-            <X size={28} />
-          </button>
-          <img 
-            src={fixUrl(previewImage)} 
-            alt="Preview" 
-            className={styles.lightboxImg}
-            onClick={(e) => e.stopPropagation()} 
-          />
-        </div>
-      )}
+      <ImageLightbox
+        src={previewImage}
+        onClose={() => setPreviewImage(null)}
+        overlayClassName={styles.lightboxOverlay}
+        closeBtnClassName={styles.lightboxClose}
+        imgClassName={styles.lightboxImg}
+      />
     </div>
   );
 }

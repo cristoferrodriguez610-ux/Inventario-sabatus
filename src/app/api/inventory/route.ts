@@ -47,6 +47,33 @@ let localMockShoes: any[] = [
   },
 ];
 
+function findRowIndexById(rows: any[][], id: string): number {
+  const rowMatch = id.match(/^(.*)__row(\d+)$/);
+  if (rowMatch) {
+    const baseId = rowMatch[1].trim();
+    const expectedRowIdx = parseInt(rowMatch[2], 10) - 3;
+    if (
+      expectedRowIdx >= 0 &&
+      expectedRowIdx < rows.length &&
+      ((rows[expectedRowIdx][1] || rows[expectedRowIdx][0] || "").trim() === baseId)
+    ) {
+      return expectedRowIdx;
+    }
+    return rows.findIndex((row) => (row[1] || row[0] || "").trim() === baseId);
+  }
+  const cleanId = id.trim();
+  return rows.findIndex((row) => (row[1] || row[0] || "").trim() === cleanId);
+}
+
+function buildFullNombre(marca?: string, nombre?: string): string {
+  const m = (marca || "").trim();
+  const n = (nombre || "").trim();
+  if (m && n.toLowerCase().startsWith(m.toLowerCase())) {
+    return n;
+  }
+  return `${m} ${n}`.trim();
+}
+
 export async function GET(request: Request) {
   const role = request.headers.get("x-user-role");
 
@@ -66,8 +93,9 @@ export async function GET(request: Request) {
     });
 
     const rows = response.data.values || [];
+    const seenIds = new Set<string>();
 
-    const inventory = rows.map((row) => {
+    const inventory = rows.map((row, index) => {
       // row[0]: Nombre (A)
       // row[1]: Código (B)
       // row[2] to row[13]: Tallas 34 to 45 (C to N)
@@ -77,26 +105,43 @@ export async function GET(request: Request) {
         stock: parseInt(row[idx + 2]) || 0, // offset by 2 (C)
       })).filter(t => t.stock >= 0);
 
-      const marcaRaw = row[19] || ""; // Col T
-      let nombreFull = row[0] || ""; // Col A
+      const marcaRaw = (row[19] || "").trim(); // Col T
+      const nombreFull = (row[0] || "").trim(); // Col A
       let nombreLimpio = nombreFull;
-      if (marcaRaw && nombreFull.toLowerCase().startsWith(marcaRaw.toLowerCase())) {
-        nombreLimpio = nombreFull.substring(marcaRaw.length).trim();
+      while (marcaRaw && nombreLimpio.toLowerCase().startsWith(marcaRaw.toLowerCase())) {
+        const rest = nombreLimpio.substring(marcaRaw.length).trim();
+        if (!rest) break;
+        nombreLimpio = rest;
+      }
+
+      const codigoClean = (row[1] || "").trim();
+      const baseId = codigoClean || nombreFull || "";
+      let uniqueId = baseId;
+      if (baseId) {
+        if (seenIds.has(baseId)) {
+          uniqueId = `${baseId}__row${index + 3}`;
+        }
+        seenIds.add(baseId);
       }
 
       return {
-        id: row[1] || row[0] || "", // Using codigo as ID, fallback to nombre if empty
-        codigo: row[1] || "", // Col B
+        id: uniqueId, // Guaranteed unique per row even if codigo is duplicated
+        codigo: codigoClean, // Col B
         nombre: nombreLimpio, // Col A (sin la marca)
         marca: marcaRaw, // Col T
         precioCompra: Number(row[14]) || 0, // Col O
         precioRevendedor: Number(row[15]) || 0, // Col P
         precio: Number(row[16]) || 0, // Col Q (Venta)
-        color: row[17] || "", // Col R
-        imageUrl: (row[18] || "").replace(/^http:\/\//, 'https://'), // Col S
+        color: (row[17] || "").trim(), // Col R
+        imageUrl: (row[18] || "").trim().replace(/^http:\/\//i, "https://"), // Col S
         tallas,
       };
-    }).filter(item => item.id !== "" && item.nombre.toLowerCase() !== "nombre"); // Filter out empty and header
+    }).filter(
+      item =>
+        item.id !== "" &&
+        item.nombre.toLowerCase() !== "nombre" &&
+        item.codigo.toLowerCase() !== "codigo"
+    ); // Filter out empty and header
 
     if (role !== "Admin") {
       const sanitized = inventory.map(({ precioCompra, ...rest }) => rest);
@@ -125,18 +170,19 @@ export async function POST(request: Request) {
       return found ? found.stock : 0;
     });
 
-    const fullNombre = `${body.marca || ""} ${body.nombre || ""}`.trim();
+    const fullNombre = buildFullNombre(body.marca, body.nombre);
+    const cleanCode = (body.codigo || body.id || "").replace(/__row\d+$/, "").trim();
 
     const newRow = [
       fullNombre, // Col A
-      body.codigo || body.id, // Col B
+      cleanCode, // Col B
       ...sizeStocks, // Col C to N
       body.precioCompra || 0, // Col O
       body.precioRevendedor || 0, // Col P
       body.precio || 0, // Col Q
-      body.color || "", // Col R
-      body.imageUrl || "", // Col S
-      body.marca || "", // Col T
+      (body.color || "").trim(), // Col R
+      (body.imageUrl || "").trim(), // Col S
+      (body.marca || "").trim(), // Col T
     ];
 
     await sheets.spreadsheets.values.append({
@@ -167,8 +213,7 @@ export async function PUT(request: Request) {
     });
 
     const rows = response.data.values || [];
-    // ID is defined in GET as: row[1] || row[0] || ""
-    const rowIndex = rows.findIndex(row => (row[1] || row[0] || "") === body.id);
+    const rowIndex = findRowIndexById(rows, String(body.id || ""));
 
     if (rowIndex === -1) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
@@ -181,18 +226,19 @@ export async function PUT(request: Request) {
       return found ? found.stock : 0;
     });
 
-    const fullNombre = `${body.marca || ""} ${body.nombre || ""}`.trim();
+    const fullNombre = buildFullNombre(body.marca, body.nombre);
+    const cleanCode = (body.codigo || body.id || "").replace(/__row\d+$/, "").trim();
 
     const updatedRow = [
       fullNombre, // Col A
-      body.codigo || body.id, // Col B
+      cleanCode, // Col B
       ...sizeStocks,
       body.precioCompra || 0, // Col O
       body.precioRevendedor || 0, // Col P
       body.precio || 0, // Col Q
-      body.color || "", // Col R
-      body.imageUrl || "", // Col S
-      body.marca || "", // Col T
+      (body.color || "").trim(), // Col R
+      (body.imageUrl || "").trim(), // Col S
+      (body.marca || "").trim(), // Col T
     ];
 
     await sheets.spreadsheets.values.update({
@@ -214,7 +260,7 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get("id");
 
     if (!id) {
       return NextResponse.json({ error: "ID is required" }, { status: 400 });
@@ -229,7 +275,7 @@ export async function DELETE(request: Request) {
     });
 
     const rows = response.data.values || [];
-    const rowIndex = rows.findIndex(row => (row[1] || row[0] || "") === id);
+    const rowIndex = findRowIndexById(rows, id);
 
     if (rowIndex === -1) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });

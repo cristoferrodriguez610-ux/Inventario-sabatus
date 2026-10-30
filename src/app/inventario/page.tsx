@@ -1,9 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useDeferredValue } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LogOut, ChevronDown, X, Shirt, SportShoe, LayoutDashboard } from "lucide-react";
+import {
+  Search,
+  LogOut,
+  ChevronDown,
+  X,
+  Shirt,
+  SportShoe,
+  LayoutDashboard,
+  Menu,
+} from "lucide-react";
 import adminStyles from "../admin/page.module.css";
+import { filterAndRankProducts } from "@/lib/search";
+import { ProductImage, ImageLightbox } from "@/components/ProductImage";
 
 type ShoeSize = {
   talla: number;
@@ -39,12 +50,23 @@ type Shirt = {
   tallas: ShirtSize[];
 };
 
+function formatProductTitle(marca?: string, nombre?: string): string {
+  const m = (marca || "").trim();
+  const n = (nombre || "").trim();
+  if (!m) return n;
+  if (!n) return m;
+  if (n.toLowerCase().startsWith(m.toLowerCase())) return n;
+  return `${m} ${n}`;
+}
+
 export default function InventoryDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"shoes" | "shirts">("shoes");
   const [inventorySubmenuOpen, setInventorySubmenuOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const [inventory, setInventory] = useState<Shoe[]>([]);
   const [shirtInventory, setShirtInventory] = useState<Shirt[]>([]);
   const [isClient, setIsClient] = useState(false);
@@ -103,26 +125,20 @@ export default function InventoryDashboard() {
     );
   };
 
-  const filteredShoes = inventory.filter(
-    (item) =>
-      item.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.marca?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredShoes = useMemo(
+    () => filterAndRankProducts(inventory, deferredSearchQuery),
+    [inventory, deferredSearchQuery]
   );
 
-  const filteredShirts = shirtInventory.filter(
-    (item) =>
-      item.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.marca?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredShirts = useMemo(
+    () => filterAndRankProducts(shirtInventory, deferredSearchQuery),
+    [shirtInventory, deferredSearchQuery]
   );
 
   const getTotalShoeStock = (tallas: ShoeSize[]) =>
     (tallas || []).reduce((sum, t) => sum + (t.stock || 0), 0);
   const getTotalShirtStock = (tallas: ShirtSize[]) =>
     (tallas || []).reduce((sum, t) => sum + (t.stock || 0), 0);
-
-  const fixUrl = (url: string) => (url ? url.replace(/^http:\/\//, "https://") : url);
 
   const getStockBadge = (stock: number) => {
     if (stock === 0)
@@ -148,12 +164,29 @@ export default function InventoryDashboard() {
 
   return (
     <div className={adminStyles.adminContainer}>
-      <aside className={adminStyles.sidebar}>
+      {sidebarOpen && (
+        <div
+          className={adminStyles.mobileOverlay}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`${adminStyles.sidebar} ${
+          sidebarOpen ? adminStyles.sidebarOpen : ""
+        }`}
+      >
         <div className={adminStyles.sidebarHeader}>
           <div className={adminStyles.logoText}>
             <span className={adminStyles.logoName}>Sabattus</span>
             <span className={adminStyles.logoTagline}>Luce y viste bien</span>
           </div>
+          <button
+            className={adminStyles.closeSidebarBtn}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className={adminStyles.nav}>
@@ -178,7 +211,10 @@ export default function InventoryDashboard() {
                   className={`${adminStyles.navSubItem} ${
                     activeTab === "shoes" ? adminStyles.activeSub : ""
                   }`}
-                  onClick={() => setActiveTab("shoes")}
+                  onClick={() => {
+                    setActiveTab("shoes");
+                    setSidebarOpen(false);
+                  }}
                 >
                   <SportShoe size={18} />
                   <span>Tenis</span>
@@ -188,7 +224,10 @@ export default function InventoryDashboard() {
                   className={`${adminStyles.navSubItem} ${
                     activeTab === "shirts" ? adminStyles.activeSub : ""
                   }`}
-                  onClick={() => setActiveTab("shirts")}
+                  onClick={() => {
+                    setActiveTab("shirts");
+                    setSidebarOpen(false);
+                  }}
                 >
                   <Shirt size={18} />
                   <span>Camisas</span>
@@ -212,6 +251,17 @@ export default function InventoryDashboard() {
       </aside>
 
       <main className={adminStyles.mainContent}>
+        {/* Mobile top bar */}
+        <div className={adminStyles.mobileTopBar}>
+          <button
+            className={adminStyles.hamburgerBtn}
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu size={22} />
+          </button>
+          <span className={adminStyles.mobileBrand}>SABATTUS</span>
+        </div>
+
         {/* Category Switcher Tabs */}
         <div className={adminStyles.categoryToggle}>
           <button
@@ -275,16 +325,52 @@ export default function InventoryDashboard() {
 
             <div className={adminStyles.tableContainer} style={{ marginTop: "1rem" }}>
               <div className={adminStyles.tableHeader}>
-                <div className={adminStyles.searchBox}>
+                <div className={adminStyles.searchBox} style={{ width: "min(100%, 380px)" }}>
                   <Search className={adminStyles.searchIcon} size={18} />
                   <input
                     type="text"
-                    placeholder="Buscar calzado (nombre, marca, código)..."
+                    placeholder="Buscar tenis (nombre, marca, color, código)..."
                     className={`input ${adminStyles.searchInput}`}
+                    style={{ paddingRight: searchQuery ? "2.25rem" : undefined }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      aria-label="Limpiar búsqueda"
+                      style={{
+                        position: "absolute",
+                        right: "0.6rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0.2rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
+                {searchQuery.trim() && (
+                  <span
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "var(--text-secondary)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {filteredShoes.length}{" "}
+                    {filteredShoes.length === 1 ? "resultado" : "resultados"}
+                  </span>
+                )}
               </div>
               <table>
                 <thead>
@@ -302,6 +388,7 @@ export default function InventoryDashboard() {
                   {filteredShoes.map((item) => {
                     const isExpanded = expandedRows.includes(item.id);
                     const totalStock = getTotalShoeStock(item.tallas);
+                    const titleText = formatProductTitle(item.marca, item.nombre);
 
                     return (
                       <React.Fragment key={item.id}>
@@ -319,34 +406,14 @@ export default function InventoryDashboard() {
                           </td>
                           <td>
                             <div className={adminStyles.productCell}>
-                              {item.imageUrl ? (
-                                <img
-                                  src={fixUrl(item.imageUrl)}
-                                  alt={item.nombre}
-                                  className={adminStyles.shoeImage}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPreviewImage(item.imageUrl);
-                                  }}
-                                  style={{ cursor: "pointer" }}
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display =
-                                      "none";
-                                    (
-                                      e.target as HTMLImageElement
-                                    ).nextElementSibling?.classList.remove(
-                                      adminStyles.hiddenPlaceholder
-                                    );
-                                  }}
-                                />
-                              ) : null}
-                              <div
-                                className={`${adminStyles.shoeImagePlaceholder} ${
-                                  item.imageUrl ? adminStyles.hiddenPlaceholder : ""
-                                }`}
-                              >
-                                👟
-                              </div>
+                              <ProductImage
+                                src={item.imageUrl}
+                                alt={titleText}
+                                fallbackEmoji="👟"
+                                imageClassName={adminStyles.shoeImage}
+                                placeholderClassName={adminStyles.shoeImagePlaceholder}
+                                onPreview={(url) => setPreviewImage(url)}
+                              />
                               <div style={{ display: "flex", flexDirection: "column" }}>
                                 <span
                                   style={{
@@ -354,7 +421,7 @@ export default function InventoryDashboard() {
                                     fontSize: "1.05rem",
                                   }}
                                 >
-                                  {item.marca} {item.nombre}
+                                  {titleText}
                                 </span>
                                 <span
                                   style={{
@@ -418,7 +485,7 @@ export default function InventoryDashboard() {
                   {filteredShoes.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>
-                        No se encontraron resultados
+                        No se encontraron resultados para &ldquo;{searchQuery}&rdquo;
                       </td>
                     </tr>
                   )}
@@ -448,16 +515,52 @@ export default function InventoryDashboard() {
 
             <div className={adminStyles.tableContainer} style={{ marginTop: "1rem" }}>
               <div className={adminStyles.tableHeader}>
-                <div className={adminStyles.searchBox}>
+                <div className={adminStyles.searchBox} style={{ width: "min(100%, 380px)" }}>
                   <Search className={adminStyles.searchIcon} size={18} />
                   <input
                     type="text"
-                    placeholder="Buscar camisas (nombre, marca, código)..."
+                    placeholder="Buscar camisas (nombre, marca, color, código)..."
                     className={`input ${adminStyles.searchInput}`}
+                    style={{ paddingRight: searchQuery ? "2.25rem" : undefined }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      aria-label="Limpiar búsqueda"
+                      style={{
+                        position: "absolute",
+                        right: "0.6rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0.2rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
+                {searchQuery.trim() && (
+                  <span
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "var(--text-secondary)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {filteredShirts.length}{" "}
+                    {filteredShirts.length === 1 ? "resultado" : "resultados"}
+                  </span>
+                )}
               </div>
               <table>
                 <thead>
@@ -475,6 +578,7 @@ export default function InventoryDashboard() {
                   {filteredShirts.map((item) => {
                     const isExpanded = expandedShirtRows.includes(item.id);
                     const totalStock = getTotalShirtStock(item.tallas);
+                    const titleText = formatProductTitle(item.marca, item.nombre);
 
                     return (
                       <React.Fragment key={item.id}>
@@ -492,34 +596,14 @@ export default function InventoryDashboard() {
                           </td>
                           <td>
                             <div className={adminStyles.productCell}>
-                              {item.imageUrl ? (
-                                <img
-                                  src={fixUrl(item.imageUrl)}
-                                  alt={item.nombre}
-                                  className={adminStyles.shoeImage}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPreviewImage(item.imageUrl);
-                                  }}
-                                  style={{ cursor: "pointer" }}
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display =
-                                      "none";
-                                    (
-                                      e.target as HTMLImageElement
-                                    ).nextElementSibling?.classList.remove(
-                                      adminStyles.hiddenPlaceholder
-                                    );
-                                  }}
-                                />
-                              ) : null}
-                              <div
-                                className={`${adminStyles.shoeImagePlaceholder} ${
-                                  item.imageUrl ? adminStyles.hiddenPlaceholder : ""
-                                }`}
-                              >
-                                👕
-                              </div>
+                              <ProductImage
+                                src={item.imageUrl}
+                                alt={titleText}
+                                fallbackEmoji="👕"
+                                imageClassName={adminStyles.shoeImage}
+                                placeholderClassName={adminStyles.shoeImagePlaceholder}
+                                onPreview={(url) => setPreviewImage(url)}
+                              />
                               <div style={{ display: "flex", flexDirection: "column" }}>
                                 <span
                                   style={{
@@ -527,7 +611,7 @@ export default function InventoryDashboard() {
                                     fontSize: "1.05rem",
                                   }}
                                 >
-                                  {item.marca} {item.nombre}
+                                  {titleText}
                                 </span>
                                 <span
                                   style={{
@@ -591,7 +675,7 @@ export default function InventoryDashboard() {
                   {filteredShirts.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>
-                        No se encontraron resultados en camisas
+                        No se encontraron resultados en camisas para &ldquo;{searchQuery}&rdquo;
                       </td>
                     </tr>
                   )}
@@ -603,25 +687,13 @@ export default function InventoryDashboard() {
       </main>
 
       {/* Lightbox Modal */}
-      {previewImage && (
-        <div
-          className={adminStyles.lightboxOverlay}
-          onClick={() => setPreviewImage(null)}
-        >
-          <button
-            className={adminStyles.lightboxClose}
-            onClick={() => setPreviewImage(null)}
-          >
-            <X size={28} />
-          </button>
-          <img
-            src={fixUrl(previewImage)}
-            alt="Preview"
-            className={adminStyles.lightboxImg}
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <ImageLightbox
+        src={previewImage}
+        onClose={() => setPreviewImage(null)}
+        overlayClassName={adminStyles.lightboxOverlay}
+        closeBtnClassName={adminStyles.lightboxClose}
+        imgClassName={adminStyles.lightboxImg}
+      />
     </div>
   );
 }
