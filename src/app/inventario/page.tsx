@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useDeferredValue } from "react";
+import React, { useState, useEffect, useMemo, useDeferredValue, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -22,6 +22,10 @@ import {
   USER_NAME_KEY,
   USER_ROLE_KEY,
 } from "@/lib/auth-constants";
+
+const SHOES_CACHE_KEY = "sabattus_cache_shoes_v1";
+const SHIRTS_CACHE_KEY = "sabattus_cache_shirts_v1";
+const PAGE_SIZE = 30;
 
 type ShoeSize = {
   talla: number;
@@ -74,14 +78,38 @@ export default function InventoryDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const [inventory, setInventory] = useState<Shoe[]>([]);
-  const [shirtInventory, setShirtInventory] = useState<Shirt[]>([]);
+  const [inventory, setInventory] = useState<Shoe[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem(SHOES_CACHE_KEY);
+        return cached ? JSON.parse(cached) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [shirtInventory, setShirtInventory] = useState<Shirt[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem(SHIRTS_CACHE_KEY);
+        return cached ? JSON.parse(cached) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const [isClient, setIsClient] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [expandedShirtRows, setExpandedShirtRows] = useState<string[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  const shoesObserverRef = useRef<HTMLTableRowElement | null>(null);
+  const shirtsObserverRef = useRef<HTMLTableRowElement | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -99,7 +127,21 @@ export default function InventoryDashboard() {
       return;
     }
 
-    // Fetch session verification and inventory in parallel to eliminate sequential waterfall on mobile
+    setIsAuthenticated(true);
+
+    // If cache already exists, show it immediately without blocking with loading spinner
+    try {
+      const cachedShoes = localStorage.getItem(SHOES_CACHE_KEY);
+      const cachedShirts = localStorage.getItem(SHIRTS_CACHE_KEY);
+      if (cachedShoes) setInventory(JSON.parse(cachedShoes));
+      if (cachedShirts) setShirtInventory(JSON.parse(cachedShirts));
+      if (cachedShoes || cachedShirts) {
+        setIsLoading(false);
+      }
+    } catch {
+      // ignore
+    }
+
     const fetchAllInventory = async (currentRole: string) => {
       try {
         const [invRes, shirtsRes] = await Promise.all([
@@ -113,10 +155,16 @@ export default function InventoryDashboard() {
         if (invRes.ok) {
           const data = await invRes.json();
           setInventory(data);
+          try {
+            localStorage.setItem(SHOES_CACHE_KEY, JSON.stringify(data));
+          } catch {}
         }
         if (shirtsRes.ok) {
           const shirtsData = await shirtsRes.json();
           setShirtInventory(shirtsData);
+          try {
+            localStorage.setItem(SHIRTS_CACHE_KEY, JSON.stringify(shirtsData));
+          } catch {}
         }
       } catch (error) {
         console.error("Error fetching inventory:", error);
@@ -125,8 +173,6 @@ export default function InventoryDashboard() {
       }
     };
 
-    // Start loading catalog immediately while verifying session in the background
-    setIsAuthenticated(true);
     fetchAllInventory(role);
 
     fetch("/api/auth/verify", {
@@ -175,6 +221,59 @@ export default function InventoryDashboard() {
   const filteredShirts = useMemo(
     () => filterAndRankProducts(shirtInventory, deferredSearchQuery),
     [shirtInventory, deferredSearchQuery]
+  );
+
+  // Reset display count when search or active tab changes
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [deferredSearchQuery, activeTab]);
+
+  // Infinite scroll observer for Shoes
+  useEffect(() => {
+    if (activeTab !== "shoes") return;
+    const el = shoesObserverRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setDisplayCount((prev) => prev + PAGE_SIZE);
+        }
+      },
+      { rootMargin: "350px 0px" }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activeTab, displayCount, filteredShoes.length]);
+
+  // Infinite scroll observer for Shirts
+  useEffect(() => {
+    if (activeTab !== "shirts") return;
+    const el = shirtsObserverRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setDisplayCount((prev) => prev + PAGE_SIZE);
+        }
+      },
+      { rootMargin: "350px 0px" }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activeTab, displayCount, filteredShirts.length]);
+
+  const visibleShoes = useMemo(
+    () => filteredShoes.slice(0, displayCount),
+    [filteredShoes, displayCount]
+  );
+
+  const visibleShirts = useMemo(
+    () => filteredShirts.slice(0, displayCount),
+    [filteredShirts, displayCount]
   );
 
   const getTotalShoeStock = (tallas: ShoeSize[]) =>
@@ -434,7 +533,7 @@ export default function InventoryDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredShoes.map((item) => {
+                  {visibleShoes.map((item) => {
                     const isExpanded = expandedRows.includes(item.id);
                     const totalStock = getTotalShoeStock(item.tallas);
                     const titleText = formatProductTitle(item.marca, item.nombre);
@@ -524,6 +623,13 @@ export default function InventoryDashboard() {
                       </React.Fragment>
                     );
                   })}
+                  {displayCount < filteredShoes.length && (
+                    <tr ref={shoesObserverRef}>
+                      <td colSpan={7} style={{ textAlign: "center", padding: "1.25rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                        Cargando más productos ({visibleShoes.length} de {filteredShoes.length})...
+                      </td>
+                    </tr>
+                  )}
                   {filteredShoes.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>
@@ -617,7 +723,7 @@ export default function InventoryDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredShirts.map((item) => {
+                  {visibleShirts.map((item) => {
                     const isExpanded = expandedShirtRows.includes(item.id);
                     const totalStock = getTotalShirtStock(item.tallas);
                     const titleText = formatProductTitle(item.marca, item.nombre);
@@ -707,6 +813,13 @@ export default function InventoryDashboard() {
                       </React.Fragment>
                     );
                   })}
+                  {displayCount < filteredShirts.length && (
+                    <tr ref={shirtsObserverRef}>
+                      <td colSpan={7} style={{ textAlign: "center", padding: "1.25rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                        Cargando más productos ({visibleShirts.length} de {filteredShirts.length})...
+                      </td>
+                    </tr>
+                  )}
                   {filteredShirts.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>

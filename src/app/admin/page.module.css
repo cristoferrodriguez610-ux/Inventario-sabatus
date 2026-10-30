@@ -233,6 +233,8 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
 }
 
 .tableHeader {
@@ -290,8 +292,6 @@
 .tableContainer :global(tbody tr.mainRow) {
   cursor: pointer;
   transition: background-color var(--transition-fast);
-  content-visibility: auto;
-  contain-intrinsic-size: auto 68px;
 }
 
 .tableContainer :global(tbody tr.mainRow:hover) {

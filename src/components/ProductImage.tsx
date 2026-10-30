@@ -127,6 +127,7 @@ export function ProductImage({
           src={cleanSrc}
           alt={alt}
           decoding="async"
+          loading="lazy"
           className={imageClassName}
           onClick={(e) => {
             if (onPreview) {
