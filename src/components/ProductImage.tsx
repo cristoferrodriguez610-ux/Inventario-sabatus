@@ -3,77 +3,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
+// Session cache of URLs that have already loaded in the browser
 const loadedUrlsCache = new Set<string>();
-const failedUrlsCache = new Set<string>();
-
-// Concurrency queue so cold-cache loads never flood the network or decoder
-const MAX_CONCURRENT_LOADS = 6;
-let activeLoads = 0;
-const loadQueue: Array<() => void> = [];
-
-function enqueueLoad(startFn: () => void): () => void {
-  let cancelled = false;
-  const wrapped = () => {
-    if (cancelled) {
-      pumpQueue();
-      return;
-    }
-    startFn();
-  };
-
-  if (activeLoads < MAX_CONCURRENT_LOADS) {
-    activeLoads++;
-    startFn();
-  } else {
-    loadQueue.push(wrapped);
-  }
-
-  return () => {
-    cancelled = true;
-    const idx = loadQueue.indexOf(wrapped);
-    if (idx !== -1) {
-      loadQueue.splice(idx, 1);
-    }
-  };
-}
-
-function finishLoadSlot() {
-  activeLoads = Math.max(0, activeLoads - 1);
-  pumpQueue();
-}
-
-function pumpQueue() {
-  while (activeLoads < MAX_CONCURRENT_LOADS && loadQueue.length > 0) {
-    const next = loadQueue.shift();
-    if (next) {
-      activeLoads++;
-      next();
-    }
-  }
-}
 
 export function cleanImageUrl(url?: string | null): string {
   if (!url) return "";
   return url.trim().replace(/^http:\/\//i, "https://");
-}
-
-export function getOptimizedImageUrl(
-  rawUrl: string | undefined | null,
-  width: 96 | 256 | 1080 = 96
-): string {
-  const clean = cleanImageUrl(rawUrl);
-  if (!clean) return "";
-  if (
-    clean.startsWith("data:") ||
-    clean.startsWith("blob:") ||
-    clean.startsWith("/_next/")
-  ) {
-    return clean;
-  }
-  if (clean.startsWith("https://") || clean.startsWith("http://")) {
-    return `/_next/image?url=${encodeURIComponent(clean)}&w=${width}&q=75`;
-  }
-  return clean;
 }
 
 interface ProductImageProps {
@@ -94,53 +29,32 @@ export function ProductImage({
   onPreview,
 }: ProductImageProps) {
   const cleanSrc = cleanImageUrl(src);
-  const optimizedSrc = getOptimizedImageUrl(cleanSrc, 96);
+  const alreadyCached = Boolean(cleanSrc) && loadedUrlsCache.has(cleanSrc);
 
-  const isAlreadyLoaded =
-    Boolean(optimizedSrc) &&
-    (loadedUrlsCache.has(optimizedSrc) || loadedUrlsCache.has(cleanSrc));
-  const isKnownFailed =
-    !cleanSrc ||
-    (failedUrlsCache.has(optimizedSrc) && failedUrlsCache.has(cleanSrc));
-
-  const [shouldLoad, setShouldLoad] = useState<boolean>(isAlreadyLoaded);
-  const [useRawFallback, setUseRawFallback] = useState<boolean>(() =>
-    Boolean(optimizedSrc && failedUrlsCache.has(optimizedSrc) && !failedUrlsCache.has(cleanSrc))
-  );
-  const [isLoaded, setIsLoaded] = useState<boolean>(isAlreadyLoaded);
-  const [hasFailed, setHasFailed] = useState<boolean>(isKnownFailed);
+  const [shouldLoad, setShouldLoad] = useState<boolean>(alreadyCached);
+  const [isLoaded, setIsLoaded] = useState<boolean>(alreadyCached);
+  const [hasFailed, setHasFailed] = useState<boolean>(!cleanSrc);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const slotActiveRef = useRef<boolean>(false);
 
-  const releaseSlot = () => {
-    if (slotActiveRef.current) {
-      slotActiveRef.current = false;
-      finishLoadSlot();
-    }
-  };
-
-  // Reset state if src prop changes
+  // Sync state when src prop changes
   useEffect(() => {
     const clean = cleanImageUrl(src);
-    const opt = getOptimizedImageUrl(clean, 96);
     if (!clean) {
       setHasFailed(true);
       setIsLoaded(false);
       setShouldLoad(false);
       return;
     }
-    const cached = loadedUrlsCache.has(opt) || loadedUrlsCache.has(clean);
-    const failed = failedUrlsCache.has(opt) && failedUrlsCache.has(clean);
-
-    setUseRawFallback(failedUrlsCache.has(opt) && !failedUrlsCache.has(clean));
-    setHasFailed(failed);
+    const cached = loadedUrlsCache.has(clean);
+    setHasFailed(false);
     setIsLoaded(cached);
     if (cached) {
       setShouldLoad(true);
     }
   }, [src]);
 
+  // Only mount <img> when the row is near or inside the viewport
   useEffect(() => {
     if (!cleanSrc || hasFailed || shouldLoad) return;
 
@@ -150,58 +64,27 @@ export function ProductImage({
       return;
     }
 
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let cancelQueue: (() => void) | null = null;
-
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
         if (entry?.isIntersecting) {
-          // Small 35ms debounce so rapid scrolling skips off-screen rows
-          timer = setTimeout(() => {
-            cancelQueue = enqueueLoad(() => {
-              slotActiveRef.current = true;
-              setShouldLoad(true);
-            });
-          }, 35);
-        } else {
-          if (timer) {
-            clearTimeout(timer);
-            timer = null;
-          }
-          if (cancelQueue && !slotActiveRef.current) {
-            cancelQueue();
-            cancelQueue = null;
-          }
+          setShouldLoad(true);
+          observer.disconnect();
         }
       },
-      { rootMargin: "220px 0px" }
+      { rootMargin: "150px 0px" }
     );
 
     observer.observe(el);
 
     return () => {
       observer.disconnect();
-      if (timer) clearTimeout(timer);
-      if (cancelQueue && !slotActiveRef.current) cancelQueue();
-      releaseSlot();
     };
   }, [cleanSrc, hasFailed, shouldLoad]);
-
-  // Safety timeout so a hung network request never holds a queue slot forever
-  useEffect(() => {
-    if (!shouldLoad || isLoaded || hasFailed) return;
-    const safetyTimer = setTimeout(() => {
-      releaseSlot();
-    }, 8000);
-    return () => clearTimeout(safetyTimer);
-  }, [shouldLoad, isLoaded, hasFailed]);
 
   if (!cleanSrc || hasFailed) {
     return <div className={placeholderClassName}>{fallbackEmoji}</div>;
   }
-
-  const activeSrc = useRawFallback ? cleanSrc : optimizedSrc;
 
   return (
     <div
@@ -214,12 +97,13 @@ export function ProductImage({
         flexShrink: 0,
       }}
     >
-      {!isLoaded && <div className={placeholderClassName}>{fallbackEmoji}</div>}
+      {!isLoaded && (
+        <div className={placeholderClassName}>{fallbackEmoji}</div>
+      )}
       {shouldLoad && (
         <img
-          src={activeSrc}
+          src={cleanSrc}
           alt={alt}
-          loading="lazy"
           decoding="async"
           className={imageClassName}
           onClick={(e) => {
@@ -230,22 +114,17 @@ export function ProductImage({
           }}
           style={{
             cursor: onPreview ? "pointer" : "default",
-            display: isLoaded ? "block" : "none",
+            opacity: isLoaded ? 1 : 0,
+            position: isLoaded ? "static" : "absolute",
+            inset: 0,
+            transition: "opacity 150ms ease-in-out",
           }}
           onLoad={() => {
-            loadedUrlsCache.add(activeSrc);
-            loadedUrlsCache.add(optimizedSrc);
-            releaseSlot();
+            loadedUrlsCache.add(cleanSrc);
             setIsLoaded(true);
           }}
           onError={() => {
-            failedUrlsCache.add(activeSrc);
-            if (!useRawFallback && activeSrc !== cleanSrc) {
-              setUseRawFallback(true);
-            } else {
-              releaseSlot();
-              setHasFailed(true);
-            }
+            setHasFailed(true);
           }}
         />
       )}
@@ -269,15 +148,13 @@ export function ImageLightbox({
   imgClassName,
 }: ImageLightboxProps) {
   const cleanSrc = cleanImageUrl(src);
-  const fullOptimizedSrc = getOptimizedImageUrl(cleanSrc, 1080);
-  const thumbOptimizedSrc = getOptimizedImageUrl(cleanSrc, 96);
-
-  const [useRawFallback, setUseRawFallback] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(() =>
+    Boolean(cleanSrc && loadedUrlsCache.has(cleanSrc))
+  );
 
   useEffect(() => {
-    setUseRawFallback(false);
-    setIsLoaded(false);
+    const clean = cleanImageUrl(src);
+    setIsLoaded(Boolean(clean && loadedUrlsCache.has(clean)));
   }, [src]);
 
   useEffect(() => {
@@ -290,9 +167,6 @@ export function ImageLightbox({
   }, [src, onClose]);
 
   if (!cleanSrc) return null;
-
-  const activeFullSrc = useRawFallback ? cleanSrc : fullOptimizedSrc;
-  const hasCachedThumb = loadedUrlsCache.has(thumbOptimizedSrc);
 
   return (
     <div className={overlayClassName} onClick={onClose}>
@@ -314,22 +188,6 @@ export function ImageLightbox({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Instant blurred thumbnail preview while high-res image loads */}
-        {!isLoaded && hasCachedThumb && (
-          <img
-            src={thumbOptimizedSrc}
-            alt="Cargando vista previa..."
-            className={imgClassName}
-            style={{
-              width: "min(75vw, 420px)",
-              height: "min(75vw, 420px)",
-              objectFit: "contain",
-              filter: "blur(8px)",
-              opacity: 0.75,
-            }}
-          />
-        )}
-
         {!isLoaded && (
           <div
             style={{
@@ -344,6 +202,7 @@ export function ImageLightbox({
               fontSize: "0.85rem",
               fontWeight: 600,
               pointerEvents: "none",
+              zIndex: 2,
             }}
           >
             <span className="animate-spin">⟳</span> Cargando imagen...
@@ -351,22 +210,20 @@ export function ImageLightbox({
         )}
 
         <img
-          src={activeFullSrc}
+          src={cleanSrc}
           alt="Vista previa"
           decoding="async"
           className={imgClassName}
           style={{
-            display: isLoaded || !hasCachedThumb ? "block" : "none",
-            opacity: isLoaded ? 1 : 0.25,
+            opacity: isLoaded ? 1 : 0.3,
             transition: "opacity 150ms ease",
           }}
-          onLoad={() => setIsLoaded(true)}
+          onLoad={() => {
+            loadedUrlsCache.add(cleanSrc);
+            setIsLoaded(true);
+          }}
           onError={() => {
-            if (!useRawFallback && activeFullSrc !== cleanSrc) {
-              setUseRawFallback(true);
-            } else {
-              setIsLoaded(true);
-            }
+            setIsLoaded(true);
           }}
         />
       </div>
