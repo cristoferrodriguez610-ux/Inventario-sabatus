@@ -27,8 +27,12 @@ export default function Login() {
       
       const users: any[] = await res.json();
 
-      // Check if user exists
-      const user = users.find(u => u.nombre.toLowerCase() === username.toLowerCase() && u.password === password);
+      // Check if user exists (case-insensitive username match)
+      const user = users.find(
+        (u) =>
+          u.nombre.toLowerCase().trim() === username.toLowerCase().trim() &&
+          u.password === password
+      );
 
       if (user) {
         if (typeof window !== "undefined") {
@@ -41,29 +45,11 @@ export default function Login() {
           router.push("/inventario");
         }
       } else {
-        // Fallback for first setup or if Sheets is empty/broken
-        if (username === "admin" && password === "admin123") {
-          if (typeof window !== "undefined") {
-            localStorage.setItem("userRole", "Admin");
-            localStorage.setItem("userName", "admin");
-          }
-          router.push("/admin");
-        } else {
-          setError("Usuario o contraseña incorrectos");
-        }
+        setError("Usuario o contraseña incorrectos");
       }
     } catch (err) {
       console.error(err);
-      // Fallback
-      if (username === "admin" && password === "admin123") {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("userRole", "Admin");
-          localStorage.setItem("userName", "admin");
-        }
-        router.push("/admin");
-      } else {
-        setError("Error de conexión. Intente nuevamente.");
-      }
+      setError("Error de conexión. Intente nuevamente.");
     } finally {
       setIsLoading(false);
     }

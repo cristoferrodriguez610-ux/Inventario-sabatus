@@ -5,8 +5,7 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const RANGE = "Usuarios!A2:D";
 
 let localMockUsers: any[] = [
-  { id: "1", nombre: "admin", password: "admin", rol: "Admin" },
-  { id: "2", nombre: "vendedor", password: "123", rol: "Usuario" },
+  { id: "admin_master", nombre: "admin", password: "Sabattus#Admin2026", rol: "Admin" },
 ];
 
 export async function GET() {
