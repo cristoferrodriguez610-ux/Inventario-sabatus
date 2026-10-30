@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import styles from "./page.module.css";
 import { filterAndRankProducts } from "@/lib/search";
-import { ProductImage, ImageLightbox } from "@/components/ProductImage";
+import { ProductImage, ImageLightbox, CopyableCode } from "@/components/ProductImage";
 import {
   AUTH_TOKEN_KEY,
   AUTH_VERSION_KEY,
@@ -311,6 +311,10 @@ export default function AdminDashboard() {
       return;
     }
 
+    // Start loading data immediately in parallel with session verification to eliminate mobile waterfall
+    setIsAuthenticated(true);
+    fetchData();
+
     // Verify cryptographic token against current user credentials on server
     fetch("/api/auth/verify", {
       method: "POST",
@@ -325,8 +329,6 @@ export default function AdminDashboard() {
         if (!data.valid || data.user?.rol !== "Admin") {
           throw new Error("Unauthorized");
         }
-        setIsAuthenticated(true);
-        fetchData();
       })
       .catch((err) => {
         console.warn("Session expired or credentials changed:", err);
@@ -1162,7 +1164,7 @@ export default function AdminDashboard() {
                               />
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{titleText}</span>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.codigo}</span>
+                                <CopyableCode code={item.codigo} />
                               </div>
                             </div>
                           </td>
@@ -1519,7 +1521,7 @@ export default function AdminDashboard() {
                               />
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{titleText}</span>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.codigo}</span>
+                                <CopyableCode code={item.codigo} />
                               </div>
                             </div>
                           </td>

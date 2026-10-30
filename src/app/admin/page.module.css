@@ -290,6 +290,8 @@
 .tableContainer :global(tbody tr.mainRow) {
   cursor: pointer;
   transition: background-color var(--transition-fast);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 68px;
 }
 
 .tableContainer :global(tbody tr.mainRow:hover) {

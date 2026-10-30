@@ -17,9 +17,24 @@ export const localMockUsers: AuthUser[] = [
   { id: "admin_master", nombre: "admin", password: "Sabattus#Admin2026", rol: "Admin" },
 ];
 
-export async function fetchUsersFromSource(): Promise<AuthUser[]> {
+let usersCache: { data: AuthUser[]; timestamp: number } | null = null;
+const USERS_CACHE_TTL_MS = 15_000; // 15 seconds
+
+export function invalidateUsersCache() {
+  usersCache = null;
+}
+
+export async function fetchUsersFromSource(forceRefresh = false): Promise<AuthUser[]> {
   if (!SHEET_ID) {
     return localMockUsers;
+  }
+
+  if (
+    !forceRefresh &&
+    usersCache &&
+    Date.now() - usersCache.timestamp < USERS_CACHE_TTL_MS
+  ) {
+    return usersCache.data;
   }
 
   try {
@@ -40,10 +55,12 @@ export async function fetchUsersFromSource(): Promise<AuthUser[]> {
       }))
       .filter((u) => u.id !== "" && u.nombre !== "");
 
-    return users.length > 0 ? users : localMockUsers;
+    const result = users.length > 0 ? users : localMockUsers;
+    usersCache = { data: result, timestamp: Date.now() };
+    return result;
   } catch (error) {
     console.error("fetchUsersFromSource error:", error);
-    return localMockUsers;
+    return usersCache ? usersCache.data : localMockUsers;
   }
 }
 

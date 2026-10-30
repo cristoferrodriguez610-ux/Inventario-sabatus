@@ -4,6 +4,10 @@ import { getGoogleSheets } from "@/lib/google-sheets";
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const RANGE = "Inventario!A3:T"; // Expanded to T to accommodate 12 sizes (34-45) + fields
 
+// Short in-memory cache so parallel or repeated device requests don't hammer Google Sheets API
+let inventoryCache: { data: any[]; timestamp: number } | null = null;
+const INVENTORY_CACHE_TTL_MS = 10_000; // 10 seconds
+
 // Helper to map sizes to array indices (34 to 45 -> 1 to 12)
 const SIZES = [34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45];
 
@@ -85,6 +89,17 @@ export async function GET(request: Request) {
     return NextResponse.json(localMockShoes);
   }
 
+  if (
+    inventoryCache &&
+    Date.now() - inventoryCache.timestamp < INVENTORY_CACHE_TTL_MS
+  ) {
+    const cached = inventoryCache.data;
+    if (role !== "Admin") {
+      return NextResponse.json(cached.map(({ precioCompra, ...rest }) => rest));
+    }
+    return NextResponse.json(cached);
+  }
+
   try {
     const sheets = await getGoogleSheets();
     const response = await sheets.spreadsheets.values.get({
@@ -143,6 +158,8 @@ export async function GET(request: Request) {
         item.codigo.toLowerCase() !== "codigo"
     ); // Filter out empty and header
 
+    inventoryCache = { data: inventory, timestamp: Date.now() };
+
     if (role !== "Admin") {
       const sanitized = inventory.map(({ precioCompra, ...rest }) => rest);
       return NextResponse.json(sanitized);
@@ -151,11 +168,12 @@ export async function GET(request: Request) {
     return NextResponse.json(inventory);
   } catch (error) {
     console.error("GET Error:", error);
+    const fallback = inventoryCache ? inventoryCache.data : localMockShoes;
     if (role !== "Admin") {
-      const sanitized = localMockShoes.map(({ precioCompra, ...rest }) => rest);
+      const sanitized = fallback.map(({ precioCompra, ...rest }) => rest);
       return NextResponse.json(sanitized);
     }
-    return NextResponse.json(localMockShoes);
+    return NextResponse.json(fallback);
   }
 }
 
@@ -194,6 +212,7 @@ export async function POST(request: Request) {
       },
     });
 
+    inventoryCache = null;
     return NextResponse.json({ success: true, message: "Item added" });
   } catch (error) {
     console.error("POST Error:", error);
@@ -250,6 +269,7 @@ export async function PUT(request: Request) {
       },
     });
 
+    inventoryCache = null;
     return NextResponse.json({ success: true, message: "Item updated" });
   } catch (error) {
     console.error("PUT Error:", error);
@@ -313,6 +333,7 @@ export async function DELETE(request: Request) {
       },
     });
 
+    inventoryCache = null;
     return NextResponse.json({ success: true, message: "Item deleted" });
   } catch (error) {
     console.error("DELETE Error:", error);

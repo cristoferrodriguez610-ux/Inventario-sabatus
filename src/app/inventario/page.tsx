@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import adminStyles from "../admin/page.module.css";
 import { filterAndRankProducts } from "@/lib/search";
-import { ProductImage, ImageLightbox } from "@/components/ProductImage";
+import { ProductImage, ImageLightbox, CopyableCode } from "@/components/ProductImage";
 import {
   AUTH_TOKEN_KEY,
   AUTH_VERSION_KEY,
@@ -99,6 +99,7 @@ export default function InventoryDashboard() {
       return;
     }
 
+    // Fetch session verification and inventory in parallel to eliminate sequential waterfall on mobile
     const fetchAllInventory = async (currentRole: string) => {
       try {
         const [invRes, shirtsRes] = await Promise.all([
@@ -124,7 +125,10 @@ export default function InventoryDashboard() {
       }
     };
 
-    // Verify session validity with server
+    // Start loading catalog immediately while verifying session in the background
+    setIsAuthenticated(true);
+    fetchAllInventory(role);
+
     fetch("/api/auth/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -134,8 +138,6 @@ export default function InventoryDashboard() {
         if (!res.ok) throw new Error("Invalid session");
         const data = await res.json();
         if (!data.valid) throw new Error("Unauthorized");
-        setIsAuthenticated(true);
-        fetchAllInventory(role);
       })
       .catch((err) => {
         console.warn("Session expired or credentials changed:", err);
@@ -470,14 +472,7 @@ export default function InventoryDashboard() {
                                 >
                                   {titleText}
                                 </span>
-                                <span
-                                  style={{
-                                    fontSize: "0.85rem",
-                                    color: "var(--text-secondary)",
-                                  }}
-                                >
-                                  {item.codigo}
-                                </span>
+                                <CopyableCode code={item.codigo} />
                               </div>
                             </div>
                           </td>
@@ -660,14 +655,7 @@ export default function InventoryDashboard() {
                                 >
                                   {titleText}
                                 </span>
-                                <span
-                                  style={{
-                                    fontSize: "0.85rem",
-                                    color: "var(--text-secondary)",
-                                  }}
-                                >
-                                  {item.codigo}
-                                </span>
+                                <CopyableCode code={item.codigo} />
                               </div>
                             </div>
                           </td>

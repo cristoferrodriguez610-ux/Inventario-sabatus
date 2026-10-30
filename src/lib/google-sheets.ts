@@ -1,6 +1,12 @@
-import { google } from "googleapis";
+import { google, sheets_v4 } from "googleapis";
 
-export const getGoogleSheets = async () => {
+let cachedSheets: sheets_v4.Sheets | null = null;
+
+export const getGoogleSheets = async (): Promise<sheets_v4.Sheets> => {
+  if (cachedSheets) {
+    return cachedSheets;
+  }
+
   try {
     const auth = new google.auth.GoogleAuth({
       credentials: {
@@ -12,10 +18,11 @@ export const getGoogleSheets = async () => {
       ],
     });
 
-    const sheets = google.sheets({ version: "v4", auth });
-    return sheets;
+    cachedSheets = google.sheets({ version: "v4", auth });
+    return cachedSheets;
   } catch (error) {
     console.error("Error authenticating with Google Sheets:", error);
     throw new Error("Google Sheets Authentication Failed");
   }
 };
+

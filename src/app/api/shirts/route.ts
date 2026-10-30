@@ -5,6 +5,10 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const SHEET_NAME = "Camisas";
 const RANGE = `${SHEET_NAME}!A3:M`;
 
+let camisasSheetVerified = false;
+let shirtsCache: { data: any[]; timestamp: number } | null = null;
+const SHIRTS_CACHE_TTL_MS = 10_000; // 10 seconds
+
 type ShirtSize = {
   talla: string;
   stock: number;
@@ -94,6 +98,7 @@ function buildFullNombre(marca?: string, nombre?: string): string {
 }
 
 async function ensureCamisasSheet(sheets: any) {
+  if (camisasSheetVerified) return;
   try {
     const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
     const exists = meta.data.sheets?.some(
@@ -147,6 +152,7 @@ async function ensureCamisasSheet(sheets: any) {
         },
       });
     }
+    camisasSheetVerified = true;
   } catch (err) {
     console.error("Error ensuring Camisas sheet:", err);
   }
@@ -163,14 +169,33 @@ export async function GET(request: Request) {
     return NextResponse.json(localMockShirts);
   }
 
+  if (
+    shirtsCache &&
+    Date.now() - shirtsCache.timestamp < SHIRTS_CACHE_TTL_MS
+  ) {
+    const cached = shirtsCache.data;
+    if (role !== "Admin") {
+      return NextResponse.json(cached.map(({ precioCompra, ...rest }) => rest));
+    }
+    return NextResponse.json(cached);
+  }
+
   try {
     const sheets = await getGoogleSheets();
-    await ensureCamisasSheet(sheets);
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: RANGE,
-    });
+    let response;
+    try {
+      response = await sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: RANGE,
+      });
+      camisasSheetVerified = true;
+    } catch {
+      await ensureCamisasSheet(sheets);
+      response = await sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: RANGE,
+      });
+    }
 
     const rows = response.data.values || [];
     const seenIds = new Set<string>();
@@ -252,6 +277,8 @@ export async function GET(request: Request) {
           item.codigo.toLowerCase() !== "codigo"
       );
 
+    shirtsCache = { data: shirts, timestamp: Date.now() };
+
     if (role !== "Admin") {
       const sanitized = shirts.map(({ precioCompra, ...rest }) => rest);
       return NextResponse.json(sanitized);
@@ -261,11 +288,12 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("GET Camisas Error:", error);
     // Return fallback mock data so dev / offline works smoothly
+    const fallback = shirtsCache ? shirtsCache.data : localMockShirts;
     if (role !== "Admin") {
-      const sanitized = localMockShirts.map(({ precioCompra, ...rest }) => rest);
+      const sanitized = fallback.map(({ precioCompra, ...rest }) => rest);
       return NextResponse.json(sanitized);
     }
-    return NextResponse.json(localMockShirts);
+    return NextResponse.json(fallback);
   }
 }
 
@@ -326,6 +354,7 @@ export async function POST(request: Request) {
       },
     });
 
+    shirtsCache = null;
     return NextResponse.json({ success: true, message: "Camisa añadida" });
   } catch (error) {
     console.error("POST Camisas Error:", error);
@@ -402,6 +431,7 @@ export async function PUT(request: Request) {
       },
     });
 
+    shirtsCache = null;
     return NextResponse.json({ success: true, message: "Camisa actualizada" });
   } catch (error) {
     console.error("PUT Camisas Error:", error);
@@ -470,6 +500,7 @@ export async function DELETE(request: Request) {
       },
     });
 
+    shirtsCache = null;
     return NextResponse.json({ success: true, message: "Camisa eliminada" });
   } catch (error) {
     console.error("DELETE Camisas Error:", error);

@@ -311,6 +311,16 @@ interface IndexedProduct {
   availableSizes: Set<string>;
 }
 
+const productIndexCache = new WeakMap<SearchableProduct, IndexedProduct>();
+
+function getOrBuildProductIndex(item: SearchableProduct): IndexedProduct {
+  const cached = productIndexCache.get(item);
+  if (cached) return cached;
+  const built = buildProductIndex(item);
+  productIndexCache.set(item, built);
+  return built;
+}
+
 function buildProductIndex(item: SearchableProduct): IndexedProduct {
   const rawDisplay = `${item.marca || ""} ${item.nombre || ""}`;
   const displayNorm = normalizeCompoundPhrases(normalizeText(rawDisplay));
@@ -532,7 +542,7 @@ export function filterAndRankProducts<T extends SearchableProduct>(
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const idx = buildProductIndex(item);
+    const idx = getOrBuildProductIndex(item);
 
     let bonus = 0;
     if (idx.codeNorm === normQuery || idx.compactCode === compactQuery) {

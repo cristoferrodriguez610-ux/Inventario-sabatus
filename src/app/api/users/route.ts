@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getGoogleSheets } from "@/lib/google-sheets";
-import { fetchUsersFromSource } from "@/lib/auth";
+import { fetchUsersFromSource, invalidateUsersCache } from "@/lib/auth";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       },
     });
 
+    invalidateUsersCache();
     return NextResponse.json({ success: true, message: "User added" });
   } catch (error) {
     console.error("POST Users Error:", error);
@@ -73,6 +74,7 @@ export async function PUT(request: Request) {
       },
     });
 
+    invalidateUsersCache();
     return NextResponse.json({ success: true, message: "User updated" });
   } catch (error) {
     console.error("PUT Users Error:", error);
@@ -136,6 +138,7 @@ export async function DELETE(request: Request) {
       },
     });
 
+    invalidateUsersCache();
     return NextResponse.json({ success: true, message: "User deleted" });
   } catch (error) {
     console.error("DELETE Users Error:", error);
