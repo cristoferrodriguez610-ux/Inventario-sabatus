@@ -13,7 +13,7 @@ import {
   Menu,
 } from "lucide-react";
 import adminStyles from "../admin/page.module.css";
-import { filterAndRankProducts } from "@/lib/search";
+import { filterAndRankProducts, getSearchedSizes } from "@/lib/search";
 import { ProductImage, ImageLightbox, CopyableCode } from "@/components/ProductImage";
 import {
   AUTH_TOKEN_KEY,
@@ -477,7 +477,7 @@ export default function InventoryDashboard() {
                   <Search className={adminStyles.searchIcon} size={18} />
                   <input
                     type="text"
-                    placeholder="Buscar tenis (nombre, marca, color, código)..."
+                    placeholder="Buscar tenis por modelo o talla (ej: 44, 37, Nike)..."
                     className={`input ${adminStyles.searchInput}`}
                     style={{ paddingRight: searchQuery ? "2.25rem" : undefined }}
                     value={searchQuery}
@@ -667,7 +667,7 @@ export default function InventoryDashboard() {
                   <Search className={adminStyles.searchIcon} size={18} />
                   <input
                     type="text"
-                    placeholder="Buscar camisas (nombre, marca, color, código)..."
+                    placeholder="Buscar camisas por modelo o talla (ej: M, XL, Zara)..."
                     className={`input ${adminStyles.searchInput}`}
                     style={{ paddingRight: searchQuery ? "2.25rem" : undefined }}
                     value={searchQuery}

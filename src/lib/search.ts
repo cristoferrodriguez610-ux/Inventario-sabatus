@@ -236,7 +236,9 @@ function normalizeCompoundPhrases(norm: string): string {
     .replace(/\br\s*4\b/g, "retro 4")
     .replace(/\br\s*3\b/g, "retro 3")
     .replace(/\bretro\s*(\d+)\b/g, "retro $1")
-    .replace(/\bjordan\s*(\d+)\b/g, "jordan $1");
+    .replace(/\bjordan\s*(\d+)\b/g, "jordan $1")
+    .replace(/\btallas?\s+(\d{2})\b/g, " $1 ")
+    .replace(/\bt\s*(\d{2})\b/g, " $1 ");
 }
 
 /**
@@ -565,8 +567,8 @@ export function filterAndRankProducts<T extends SearchableProduct>(
       let tokScore = scoreTokenMatch(qTok, idx);
 
       // If user explicitly searched "talla 40" or included a shoe/shirt size with stock
-      if (tokScore === 0 && rawTokens.includes("talla") && idx.availableSizes.has(qTok)) {
-        tokScore = 70;
+      if (tokScore === 0 && idx.availableSizes.has(qTok)) {
+        tokScore = 95;
       }
 
       if (tokScore > 0) {
@@ -625,4 +627,25 @@ export function filterAndRankProducts<T extends SearchableProduct>(
   }
 
   return [];
+}
+
+
+/**
+ * Extracts sizes present in the user query (e.g. "44", "37", "M", "XL").
+ */
+export function getSearchedSizes(rawQuery: string): string[] {
+  if (!rawQuery || !rawQuery.trim()) return [];
+  const norm = normalizeCompoundPhrases(normalizeText(rawQuery));
+  const rawTokens = norm.split(" ").filter(Boolean);
+  const sizes: string[] = [];
+  for (const tok of rawTokens) {
+    if (STOPWORDS.has(tok)) continue;
+    const num = Number(tok);
+    if (!isNaN(num) && num >= 20 && num <= 55) {
+      if (!sizes.includes(tok)) sizes.push(tok);
+    } else if (["xs", "s", "m", "l", "xl", "xxl", "2xl", "3xl", "4xl"].includes(tok)) {
+      if (!sizes.includes(tok)) sizes.push(tok);
+    }
+  }
+  return sizes;
 }

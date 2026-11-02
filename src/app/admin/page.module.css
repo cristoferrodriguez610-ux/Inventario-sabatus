@@ -1106,3 +1106,25 @@
   border-color: var(--accent-primary);
 }
 
+
+.sizeCardHighlighted {
+  border-color: var(--text-primary) !important;
+  box-shadow: 0 0 0 2px var(--text-primary), var(--shadow-md) !important;
+  background-color: var(--bg-secondary) !important;
+  transform: translateY(-2px);
+}
+
+.searchedSizeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  width: fit-content;
+  margin-top: 0.25rem;
+}

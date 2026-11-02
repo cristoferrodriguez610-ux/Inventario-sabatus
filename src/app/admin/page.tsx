@@ -21,7 +21,7 @@ import {
   DollarSign
 } from "lucide-react";
 import styles from "./page.module.css";
-import { filterAndRankProducts } from "@/lib/search";
+import { filterAndRankProducts, getSearchedSizes } from "@/lib/search";
 import { ProductImage, ImageLightbox, CopyableCode } from "@/components/ProductImage";
 import {
   AUTH_TOKEN_KEY,
@@ -1545,7 +1545,7 @@ export default function AdminDashboard() {
                   <Search className={styles.searchIcon} size={18} />
                   <input
                     type="text"
-                    placeholder="Buscar camisas (nombre, marca, color, código)..."
+                    placeholder="Buscar camisas por modelo o talla (ej: M, XL, Zara)..."
                     className={`input ${styles.searchInput}`}
                     style={{ paddingRight: searchQuery ? "2.25rem" : undefined }}
                     value={searchQuery}
