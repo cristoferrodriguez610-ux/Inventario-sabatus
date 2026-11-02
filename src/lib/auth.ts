@@ -18,7 +18,7 @@ export const localMockUsers: AuthUser[] = [
 ];
 
 let usersCache: { data: AuthUser[]; timestamp: number } | null = null;
-const USERS_CACHE_TTL_MS = 15_000; // 15 seconds
+const USERS_CACHE_TTL_MS = 60_000; // 60 seconds
 
 export function invalidateUsersCache() {
   usersCache = null;

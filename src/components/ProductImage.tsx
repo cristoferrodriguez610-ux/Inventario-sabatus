@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, memo } from "react";
 import { X, Copy, Check } from "lucide-react";
 
-// Session cache of URLs that have already loaded in the browser
+// Session cache of external URLs that have already loaded in the browser
 const loadedUrlsCache = new Set<string>();
 
-// Shared IntersectionObserver across all ProductImage instances for low mobile memory/CPU overhead
+// Shared IntersectionObserver across all ProductImage instances for minimal mobile memory/CPU overhead
 const observerCallbacks = new Map<Element, () => void>();
 let sharedObserver: IntersectionObserver | null = null;
 
@@ -28,7 +28,7 @@ function getSharedObserver(): IntersectionObserver | null {
           }
         }
       },
-      { rootMargin: "180px 0px" }
+      { rootMargin: "250px 0px" }
     );
   }
   return sharedObserver;
@@ -36,7 +36,9 @@ function getSharedObserver(): IntersectionObserver | null {
 
 export function cleanImageUrl(url?: string | null): string {
   if (!url) return "";
-  return url.trim().replace(/^http:\/\//i, "https://");
+  const trimmed = url.trim();
+  if (trimmed.startsWith("data:")) return trimmed;
+  return trimmed.replace(/^http:\/\//i, "https://");
 }
 
 interface ProductImageProps {
@@ -48,16 +50,16 @@ interface ProductImageProps {
   onPreview?: (src: string) => void;
 }
 
-export function ProductImage({
+export const ProductImage = memo(function ProductImage({
   src,
   alt,
   fallbackEmoji = "👟",
-  imageClassName,
   placeholderClassName,
   onPreview,
 }: ProductImageProps) {
   const cleanSrc = cleanImageUrl(src);
-  const alreadyCached = Boolean(cleanSrc) && loadedUrlsCache.has(cleanSrc);
+  const isInlineData = cleanSrc.startsWith("data:");
+  const alreadyCached = Boolean(cleanSrc) && (isInlineData || loadedUrlsCache.has(cleanSrc));
 
   const [shouldLoad, setShouldLoad] = useState<boolean>(alreadyCached);
   const [isLoaded, setIsLoaded] = useState<boolean>(alreadyCached);
@@ -65,7 +67,6 @@ export function ProductImage({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Sync state when src prop changes
   useEffect(() => {
     const clean = cleanImageUrl(src);
     if (!clean) {
@@ -74,7 +75,8 @@ export function ProductImage({
       setShouldLoad(false);
       return;
     }
-    const cached = loadedUrlsCache.has(clean);
+    const inline = clean.startsWith("data:");
+    const cached = inline || loadedUrlsCache.has(clean);
     setHasFailed(false);
     setIsLoaded(cached);
     if (cached) {
@@ -82,7 +84,6 @@ export function ProductImage({
     }
   }, [src]);
 
-  // Only mount <img> when the row is near or inside the viewport using a single shared observer
   useEffect(() => {
     if (!cleanSrc || hasFailed || shouldLoad) return;
 
@@ -111,39 +112,40 @@ export function ProductImage({
   return (
     <div
       ref={containerRef}
+      className={placeholderClassName}
+      onClick={(e) => {
+        if (onPreview && isLoaded) {
+          e.stopPropagation();
+          onPreview(cleanSrc);
+        }
+      }}
       style={{
         position: "relative",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
+        overflow: "hidden",
+        cursor: onPreview ? "pointer" : "default",
       }}
     >
-      {!isLoaded && (
-        <div className={placeholderClassName}>{fallbackEmoji}</div>
-      )}
+      {!isLoaded && <span>{fallbackEmoji}</span>}
       {shouldLoad && (
         <img
           src={cleanSrc}
           alt={alt}
           decoding="async"
           loading="lazy"
-          className={imageClassName}
-          onClick={(e) => {
-            if (onPreview) {
-              e.stopPropagation();
-              onPreview(cleanSrc);
-            }
-          }}
           style={{
-            cursor: onPreview ? "pointer" : "default",
-            opacity: isLoaded ? 1 : 0,
-            position: isLoaded ? "static" : "absolute",
+            position: "absolute",
             inset: 0,
-            transition: "opacity 150ms ease-in-out",
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            opacity: isLoaded ? 1 : 0,
+            transition: isInlineData ? "none" : "opacity 120ms ease-out",
+            display: "block",
           }}
           onLoad={() => {
-            loadedUrlsCache.add(cleanSrc);
+            if (!isInlineData) {
+              loadedUrlsCache.add(cleanSrc);
+            }
             setIsLoaded(true);
           }}
           onError={() => {
@@ -153,7 +155,7 @@ export function ProductImage({
       )}
     </div>
   );
-}
+});
 
 interface ImageLightboxProps {
   src: string | null;
@@ -163,7 +165,7 @@ interface ImageLightboxProps {
   imgClassName: string;
 }
 
-export function ImageLightbox({
+export const ImageLightbox = memo(function ImageLightbox({
   src,
   onClose,
   overlayClassName,
@@ -171,13 +173,15 @@ export function ImageLightbox({
   imgClassName,
 }: ImageLightboxProps) {
   const cleanSrc = cleanImageUrl(src);
+  const isInlineData = cleanSrc.startsWith("data:");
   const [isLoaded, setIsLoaded] = useState(() =>
-    Boolean(cleanSrc && loadedUrlsCache.has(cleanSrc))
+    Boolean(cleanSrc && (isInlineData || loadedUrlsCache.has(cleanSrc)))
   );
 
   useEffect(() => {
     const clean = cleanImageUrl(src);
-    setIsLoaded(Boolean(clean && loadedUrlsCache.has(clean)));
+    const inline = clean.startsWith("data:");
+    setIsLoaded(Boolean(clean && (inline || loadedUrlsCache.has(clean))));
   }, [src]);
 
   useEffect(() => {
@@ -218,7 +222,7 @@ export function ImageLightbox({
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",
-              background: "rgba(0, 0, 0, 0.7)",
+              background: "rgba(0, 0, 0, 0.75)",
               color: "#fff",
               padding: "0.5rem 1rem",
               borderRadius: "999px",
@@ -239,10 +243,12 @@ export function ImageLightbox({
           className={imgClassName}
           style={{
             opacity: isLoaded ? 1 : 0.3,
-            transition: "opacity 150ms ease",
+            transition: "opacity 120ms ease",
           }}
           onLoad={() => {
-            loadedUrlsCache.add(cleanSrc);
+            if (!isInlineData) {
+              loadedUrlsCache.add(cleanSrc);
+            }
             setIsLoaded(true);
           }}
           onError={() => {
@@ -252,13 +258,13 @@ export function ImageLightbox({
       </div>
     </div>
   );
-}
+});
 
 interface CopyableCodeProps {
   code?: string | null;
 }
 
-export function CopyableCode({ code }: CopyableCodeProps) {
+export const CopyableCode = memo(function CopyableCode({ code }: CopyableCodeProps) {
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -291,14 +297,14 @@ export function CopyableCode({ code }: CopyableCodeProps) {
       }
 
       if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate(25);
+        navigator.vibrate(20);
       }
 
       setCopied(true);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         setCopied(false);
-      }, 1600);
+      }, 1500);
     } catch (err) {
       console.error("Failed to copy code:", err);
     }
@@ -327,7 +333,6 @@ export function CopyableCode({ code }: CopyableCodeProps) {
         cursor: "pointer",
         userSelect: "none",
         WebkitTapHighlightColor: "transparent",
-        transition: "all 150ms ease",
       }}
     >
       <span>{cleanCode}</span>
@@ -353,5 +358,4 @@ export function CopyableCode({ code }: CopyableCodeProps) {
       )}
     </button>
   );
-}
-
+});

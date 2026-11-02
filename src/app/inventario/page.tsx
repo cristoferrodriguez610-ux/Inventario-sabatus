@@ -1,6 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useDeferredValue, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useDeferredValue,
+  useRef,
+  useCallback,
+  memo,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -13,7 +21,13 @@ import {
   Menu,
 } from "lucide-react";
 import adminStyles from "../admin/page.module.css";
-import { filterAndRankProducts, getSearchedSizes } from "@/lib/search";
+import {
+  filterAndRankProducts,
+  getSearchedSizes,
+  isSameInventoryData,
+  saveCacheIdle,
+  prewarmSearchIndex,
+} from "@/lib/search";
 import { ProductImage, ImageLightbox, CopyableCode } from "@/components/ProductImage";
 import {
   AUTH_TOKEN_KEY,
@@ -70,6 +84,308 @@ function formatProductTitle(marca?: string, nombre?: string): string {
   return `${m} ${n}`;
 }
 
+function getTotalShoeStock(tallas: ShoeSize[]): number {
+  let sum = 0;
+  if (Array.isArray(tallas)) {
+    for (let i = 0; i < tallas.length; i++) {
+      sum += tallas[i].stock || 0;
+    }
+  }
+  return sum;
+}
+
+function getTotalShirtStock(tallas: ShirtSize[]): number {
+  let sum = 0;
+  if (Array.isArray(tallas)) {
+    for (let i = 0; i < tallas.length; i++) {
+      sum += tallas[i].stock || 0;
+    }
+  }
+  return sum;
+}
+
+function renderStockBadge(stock: number) {
+  if (stock === 0)
+    return (
+      <span className={`${adminStyles.badge} ${adminStyles.badgeDanger}`}>
+        Agotado
+      </span>
+    );
+  if (stock < 10)
+    return (
+      <span className={`${adminStyles.badge} ${adminStyles.badgeWarning}`}>
+        Stock Bajo
+      </span>
+    );
+  return (
+    <span className={`${adminStyles.badge} ${adminStyles.badgeSuccess}`}>
+      Disponible
+    </span>
+  );
+}
+
+interface ShoeCatalogRowProps {
+  item: Shoe;
+  isExpanded: boolean;
+  searchedSizesKey: string;
+  onToggle: (id: string) => void;
+  onPreview: (url: string) => void;
+}
+
+const ShoeCatalogRow = memo(function ShoeCatalogRow({
+  item,
+  isExpanded,
+  searchedSizesKey,
+  onToggle,
+  onPreview,
+}: ShoeCatalogRowProps) {
+  const totalStock = getTotalShoeStock(item.tallas);
+  const titleText = formatProductTitle(item.marca, item.nombre);
+  const searchedSizes = searchedSizesKey ? searchedSizesKey.split(",") : [];
+
+  const matchingStock =
+    searchedSizes.length > 0
+      ? item.tallas
+          ?.filter(
+            (t) =>
+              searchedSizes.includes(String(t.talla).toLowerCase()) &&
+              Number(t.stock) > 0
+          )
+          .map(
+            (t) =>
+              `Talla ${t.talla}: ${t.stock} ${t.stock === 1 ? "par" : "pares"}`
+          )
+          .join(" • ")
+      : "";
+
+  return (
+    <>
+      <tr className={adminStyles.mainRow} onClick={() => onToggle(item.id)}>
+        <td>
+          <ChevronDown
+            size={18}
+            className={`${adminStyles.expandIcon} ${
+              isExpanded ? adminStyles.open : ""
+            }`}
+          />
+        </td>
+        <td>
+          <div className={adminStyles.productCell}>
+            <ProductImage
+              src={item.imageUrl}
+              alt={titleText}
+              fallbackEmoji="👟"
+              imageClassName={adminStyles.shoeImage}
+              placeholderClassName={adminStyles.shoeImagePlaceholder}
+              onPreview={onPreview}
+            />
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span
+                style={{
+                  fontWeight: "bold",
+                  fontSize: "1.05rem",
+                }}
+              >
+                {titleText}
+              </span>
+              <CopyableCode code={item.codigo} />
+              {matchingStock && (
+                <span className={adminStyles.searchedSizeBadge}>
+                  👟 {matchingStock}
+                </span>
+              )}
+            </div>
+          </div>
+        </td>
+        <td>{item.color}</td>
+        <td style={{ fontWeight: 600 }}>${item.precioRevendedor || 0}</td>
+        <td style={{ fontWeight: 600 }}>${item.precio}</td>
+        <td>{totalStock}</td>
+        <td>{renderStockBadge(totalStock)}</td>
+      </tr>
+      {isExpanded && (
+        <tr className={adminStyles.expandedContent}>
+          <td colSpan={7}>
+            <div className={adminStyles.expandedInner}>
+              <h4>Tallas Disponibles (Pares)</h4>
+              <div className={adminStyles.sizesGrid}>
+                {item.tallas?.length > 0 ? (
+                  item.tallas.map((t, idx) => {
+                    const isSearched =
+                      searchedSizes.length > 0 &&
+                      searchedSizes.includes(String(t.talla).toLowerCase());
+                    return (
+                      <div
+                        key={idx}
+                        className={`${adminStyles.sizeCard} ${
+                          isSearched ? adminStyles.sizeCardHighlighted : ""
+                        }`}
+                      >
+                        <span className={adminStyles.sizeNumber}>{t.talla}</span>
+                        <div className={adminStyles.sizeDivider} />
+                        <span
+                          className={`${adminStyles.sizeStockBadge} ${
+                            t.stock === 0
+                              ? adminStyles.noStock
+                              : t.stock < 3
+                              ? adminStyles.lowStock
+                              : adminStyles.inStock
+                          }`}
+                        >
+                          {t.stock}
+                        </span>
+                        <span className={adminStyles.sizeStockLabel}>
+                          {t.stock === 1 ? "par" : "pares"}
+                        </span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    No hay tallas registradas.
+                  </span>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+});
+
+interface ShirtCatalogRowProps {
+  item: Shirt;
+  isExpanded: boolean;
+  searchedSizesKey: string;
+  onToggle: (id: string) => void;
+  onPreview: (url: string) => void;
+}
+
+const ShirtCatalogRow = memo(function ShirtCatalogRow({
+  item,
+  isExpanded,
+  searchedSizesKey,
+  onToggle,
+  onPreview,
+}: ShirtCatalogRowProps) {
+  const totalStock = getTotalShirtStock(item.tallas);
+  const titleText = formatProductTitle(item.marca, item.nombre);
+  const searchedSizes = searchedSizesKey ? searchedSizesKey.split(",") : [];
+
+  const matchingStock =
+    searchedSizes.length > 0
+      ? item.tallas
+          ?.filter(
+            (t) =>
+              searchedSizes.includes(String(t.talla).toLowerCase()) &&
+              Number(t.stock) > 0
+          )
+          .map(
+            (t) =>
+              `Talla ${t.talla}: ${t.stock} ${
+                t.stock === 1 ? "unidad" : "unidades"
+              }`
+          )
+          .join(" • ")
+      : "";
+
+  return (
+    <>
+      <tr className={adminStyles.mainRow} onClick={() => onToggle(item.id)}>
+        <td>
+          <ChevronDown
+            size={18}
+            className={`${adminStyles.expandIcon} ${
+              isExpanded ? adminStyles.open : ""
+            }`}
+          />
+        </td>
+        <td>
+          <div className={adminStyles.productCell}>
+            <ProductImage
+              src={item.imageUrl}
+              alt={titleText}
+              fallbackEmoji="👕"
+              imageClassName={adminStyles.shoeImage}
+              placeholderClassName={adminStyles.shoeImagePlaceholder}
+              onPreview={onPreview}
+            />
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span
+                style={{
+                  fontWeight: "bold",
+                  fontSize: "1.05rem",
+                }}
+              >
+                {titleText}
+              </span>
+              <CopyableCode code={item.codigo} />
+              {matchingStock && (
+                <span className={adminStyles.searchedSizeBadge}>
+                  👕 {matchingStock}
+                </span>
+              )}
+            </div>
+          </div>
+        </td>
+        <td>{item.color}</td>
+        <td style={{ fontWeight: 600 }}>${item.precioRevendedor || 0}</td>
+        <td style={{ fontWeight: 600 }}>${item.precio}</td>
+        <td>{totalStock}</td>
+        <td>{renderStockBadge(totalStock)}</td>
+      </tr>
+      {isExpanded && (
+        <tr className={adminStyles.expandedContent}>
+          <td colSpan={7}>
+            <div className={adminStyles.expandedInner}>
+              <h4>Tallas Disponibles (Unidades)</h4>
+              <div className={adminStyles.sizesGrid}>
+                {item.tallas?.length > 0 ? (
+                  item.tallas.map((t, idx) => {
+                    const isSearched =
+                      searchedSizes.length > 0 &&
+                      searchedSizes.includes(String(t.talla).toLowerCase());
+                    return (
+                      <div
+                        key={idx}
+                        className={`${adminStyles.sizeCard} ${
+                          isSearched ? adminStyles.sizeCardHighlighted : ""
+                        }`}
+                      >
+                        <span className={adminStyles.sizeNumber}>{t.talla}</span>
+                        <div className={adminStyles.sizeDivider} />
+                        <span
+                          className={`${adminStyles.sizeStockBadge} ${
+                            t.stock === 0
+                              ? adminStyles.noStock
+                              : t.stock < 3
+                              ? adminStyles.lowStock
+                              : adminStyles.inStock
+                          }`}
+                        >
+                          {t.stock}
+                        </span>
+                        <span className={adminStyles.sizeStockLabel}>
+                          {t.stock === 1 ? "unidad" : "unidades"}
+                        </span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    No hay tallas registradas.
+                  </span>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+});
+
 export default function InventoryDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"shoes" | "shirts">("shoes");
@@ -78,28 +394,8 @@ export default function InventoryDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const [inventory, setInventory] = useState<Shoe[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem(SHOES_CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
-  const [shirtInventory, setShirtInventory] = useState<Shirt[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem(SHIRTS_CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  const [inventory, setInventory] = useState<Shoe[]>([]);
+  const [shirtInventory, setShirtInventory] = useState<Shirt[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,10 +410,16 @@ export default function InventoryDashboard() {
   useEffect(() => {
     setIsClient(true);
 
-    const token = typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
-    const version = typeof window !== "undefined" ? localStorage.getItem(AUTH_VERSION_KEY) : null;
-    const role = typeof window !== "undefined" ? localStorage.getItem(USER_ROLE_KEY) : null;
-    const username = typeof window !== "undefined" ? localStorage.getItem(USER_NAME_KEY) : null;
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+    const version =
+      typeof window !== "undefined"
+        ? localStorage.getItem(AUTH_VERSION_KEY)
+        : null;
+    const role =
+      typeof window !== "undefined" ? localStorage.getItem(USER_ROLE_KEY) : null;
+    const username =
+      typeof window !== "undefined" ? localStorage.getItem(USER_NAME_KEY) : null;
 
     if (!token || version !== CURRENT_SESSION_VERSION || !role || !username) {
       if (typeof window !== "undefined") {
@@ -129,17 +431,24 @@ export default function InventoryDashboard() {
 
     setIsAuthenticated(true);
 
-    // If cache already exists, show it immediately without blocking with loading spinner
+    // Single synchronous read from localStorage on mount
     try {
       const cachedShoes = localStorage.getItem(SHOES_CACHE_KEY);
       const cachedShirts = localStorage.getItem(SHIRTS_CACHE_KEY);
-      if (cachedShoes) setInventory(JSON.parse(cachedShoes));
-      if (cachedShirts) setShirtInventory(JSON.parse(cachedShirts));
+      if (cachedShoes) {
+        const parsedShoes = JSON.parse(cachedShoes);
+        setInventory(parsedShoes);
+        prewarmSearchIndex(parsedShoes);
+      }
+      if (cachedShirts) {
+        const parsedShirts = JSON.parse(cachedShirts);
+        setShirtInventory(parsedShirts);
+      }
       if (cachedShoes || cachedShirts) {
         setIsLoading(false);
       }
     } catch {
-      // ignore
+      // ignore corrupted cache
     }
 
     const fetchAllInventory = async (currentRole: string) => {
@@ -154,17 +463,20 @@ export default function InventoryDashboard() {
         ]);
         if (invRes.ok) {
           const data = await invRes.json();
-          setInventory(data);
-          try {
-            localStorage.setItem(SHOES_CACHE_KEY, JSON.stringify(data));
-          } catch {}
+          setInventory((prev) => {
+            if (isSameInventoryData(prev, data)) return prev;
+            saveCacheIdle(SHOES_CACHE_KEY, data);
+            prewarmSearchIndex(data);
+            return data;
+          });
         }
         if (shirtsRes.ok) {
           const shirtsData = await shirtsRes.json();
-          setShirtInventory(shirtsData);
-          try {
-            localStorage.setItem(SHIRTS_CACHE_KEY, JSON.stringify(shirtsData));
-          } catch {}
+          setShirtInventory((prev) => {
+            if (isSameInventoryData(prev, shirtsData)) return prev;
+            saveCacheIdle(SHIRTS_CACHE_KEY, shirtsData);
+            return shirtsData;
+          });
         }
       } catch (error) {
         console.error("Error fetching inventory:", error);
@@ -192,26 +504,40 @@ export default function InventoryDashboard() {
         }
         router.replace("/");
       });
-  }, []);
+  }, [router]);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     if (typeof window !== "undefined") {
       localStorage.clear();
     }
     router.push("/");
-  };
+  }, [router]);
 
-  const toggleRow = (id: string) => {
+  const toggleRow = useCallback((id: string) => {
     setExpandedRows((prev) =>
       prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
     );
-  };
+  }, []);
 
-  const toggleShirtRow = (id: string) => {
+  const toggleShirtRow = useCallback((id: string) => {
     setExpandedShirtRows((prev) =>
       prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
     );
-  };
+  }, []);
+
+  const handlePreviewImage = useCallback((url: string) => {
+    setPreviewImage(url);
+  }, []);
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewImage(null);
+  }, []);
+
+  const expandedShoeSet = useMemo(() => new Set(expandedRows), [expandedRows]);
+  const expandedShirtSet = useMemo(
+    () => new Set(expandedShirtRows),
+    [expandedShirtRows]
+  );
 
   const filteredShoes = useMemo(
     () => filterAndRankProducts(inventory, deferredSearchQuery),
@@ -223,12 +549,15 @@ export default function InventoryDashboard() {
     [shirtInventory, deferredSearchQuery]
   );
 
-  // Reset display count when search or active tab changes
+  const searchedSizesKey = useMemo(
+    () => getSearchedSizes(deferredSearchQuery).join(","),
+    [deferredSearchQuery]
+  );
+
   useEffect(() => {
     setDisplayCount(PAGE_SIZE);
   }, [deferredSearchQuery, activeTab]);
 
-  // Infinite scroll observer for Shoes
   useEffect(() => {
     if (activeTab !== "shoes") return;
     const el = shoesObserverRef.current;
@@ -240,14 +569,13 @@ export default function InventoryDashboard() {
           setDisplayCount((prev) => prev + PAGE_SIZE);
         }
       },
-      { rootMargin: "350px 0px" }
+      { rootMargin: "400px 0px" }
     );
 
     observer.observe(el);
     return () => observer.disconnect();
   }, [activeTab, displayCount, filteredShoes.length]);
 
-  // Infinite scroll observer for Shirts
   useEffect(() => {
     if (activeTab !== "shirts") return;
     const el = shirtsObserverRef.current;
@@ -259,7 +587,7 @@ export default function InventoryDashboard() {
           setDisplayCount((prev) => prev + PAGE_SIZE);
         }
       },
-      { rootMargin: "350px 0px" }
+      { rootMargin: "400px 0px" }
     );
 
     observer.observe(el);
@@ -276,36 +604,25 @@ export default function InventoryDashboard() {
     [filteredShirts, displayCount]
   );
 
-  const getTotalShoeStock = (tallas: ShoeSize[]) =>
-    (tallas || []).reduce((sum, t) => sum + (t.stock || 0), 0);
-  const getTotalShirtStock = (tallas: ShirtSize[]) =>
-    (tallas || []).reduce((sum, t) => sum + (t.stock || 0), 0);
-
-  const getStockBadge = (stock: number) => {
-    if (stock === 0)
-      return (
-        <span className={`${adminStyles.badge} ${adminStyles.badgeDanger}`}>
-          Agotado
-        </span>
-      );
-    if (stock < 10)
-      return (
-        <span className={`${adminStyles.badge} ${adminStyles.badgeWarning}`}>
-          Stock Bajo
-        </span>
-      );
-    return (
-      <span className={`${adminStyles.badge} ${adminStyles.badgeSuccess}`}>
-        Disponible
-      </span>
-    );
-  };
-
   if (!isClient || !isAuthenticated) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'var(--bg-main)', gap: '1rem' }}>
-        <span className="animate-spin" style={{ fontSize: '2rem' }}>⟳</span>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Verificando sesión...</p>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: "var(--bg-main)",
+          gap: "1rem",
+        }}
+      >
+        <span className="animate-spin" style={{ fontSize: "2rem" }}>
+          ⟳
+        </span>
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+          Verificando sesión...
+        </p>
       </div>
     );
   }
@@ -366,7 +683,9 @@ export default function InventoryDashboard() {
                 >
                   <SportShoe size={18} />
                   <span>Tenis</span>
-                  <span className={adminStyles.badgeCount}>{inventory.length}</span>
+                  <span className={adminStyles.badgeCount}>
+                    {inventory.length}
+                  </span>
                 </button>
                 <button
                   className={`${adminStyles.navSubItem} ${
@@ -399,15 +718,16 @@ export default function InventoryDashboard() {
       </aside>
 
       <main className={adminStyles.mainContent}>
-        {/* Mobile top bar */}
+        {/* Mobile Top Bar */}
         <div className={adminStyles.mobileTopBar}>
           <button
             className={adminStyles.hamburgerBtn}
             onClick={() => setSidebarOpen(true)}
+            aria-label="Abrir menú"
           >
             <Menu size={22} />
           </button>
-          <span className={adminStyles.mobileBrand}>SABATTUS</span>
+          <span className={adminStyles.mobileBrand}>Sabattus</span>
         </div>
 
         {/* Category Switcher Tabs */}
@@ -471,9 +791,15 @@ export default function InventoryDashboard() {
               </div>
             </header>
 
-            <div className={adminStyles.tableContainer} style={{ marginTop: "1rem" }}>
+            <div
+              className={adminStyles.tableContainer}
+              style={{ marginTop: "1rem" }}
+            >
               <div className={adminStyles.tableHeader}>
-                <div className={adminStyles.searchBox} style={{ width: "min(100%, 380px)" }}>
+                <div
+                  className={adminStyles.searchBox}
+                  style={{ width: "min(100%, 380px)" }}
+                >
                   <Search className={adminStyles.searchIcon} size={18} />
                   <input
                     type="text"
@@ -533,107 +859,40 @@ export default function InventoryDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleShoes.map((item) => {
-                    const isExpanded = expandedRows.includes(item.id);
-                    const totalStock = getTotalShoeStock(item.tallas);
-                    const titleText = formatProductTitle(item.marca, item.nombre);
-
-                    return (
-                      <React.Fragment key={item.id}>
-                        <tr
-                          className={adminStyles.mainRow}
-                          onClick={() => toggleRow(item.id)}
-                        >
-                          <td>
-                            <ChevronDown
-                              size={18}
-                              className={`${adminStyles.expandIcon} ${
-                                isExpanded ? adminStyles.open : ""
-                              }`}
-                            />
-                          </td>
-                          <td>
-                            <div className={adminStyles.productCell}>
-                              <ProductImage
-                                src={item.imageUrl}
-                                alt={titleText}
-                                fallbackEmoji="👟"
-                                imageClassName={adminStyles.shoeImage}
-                                placeholderClassName={adminStyles.shoeImagePlaceholder}
-                                onPreview={(url) => setPreviewImage(url)}
-                              />
-                              <div style={{ display: "flex", flexDirection: "column" }}>
-                                <span
-                                  style={{
-                                    fontWeight: "bold",
-                                    fontSize: "1.05rem",
-                                  }}
-                                >
-                                  {titleText}
-                                </span>
-                                <CopyableCode code={item.codigo} />
-                              </div>
-                            </div>
-                          </td>
-                          <td>{item.color}</td>
-                          <td style={{ fontWeight: 600 }}>${item.precioRevendedor || 0}</td>
-                          <td style={{ fontWeight: 600 }}>${item.precio}</td>
-                          <td>{totalStock}</td>
-                          <td>{getStockBadge(totalStock)}</td>
-                        </tr>
-                        {isExpanded && (
-                          <tr className={adminStyles.expandedContent}>
-                            <td colSpan={7}>
-                              <div className={adminStyles.expandedInner}>
-                                <h4>Tallas Disponibles (Pares)</h4>
-                                <div className={adminStyles.sizesGrid}>
-                                  {item.tallas?.length > 0 ? (
-                                    item.tallas.map((t, idx) => (
-                                      <div key={idx} className={adminStyles.sizeCard}>
-                                        <span className={adminStyles.sizeNumber}>
-                                          {t.talla}
-                                        </span>
-                                        <div className={adminStyles.sizeDivider} />
-                                        <span
-                                          className={`${adminStyles.sizeStockBadge} ${
-                                            t.stock === 0
-                                              ? adminStyles.noStock
-                                              : t.stock < 3
-                                              ? adminStyles.lowStock
-                                              : adminStyles.inStock
-                                          }`}
-                                        >
-                                          {t.stock}
-                                        </span>
-                                        <span className={adminStyles.sizeStockLabel}>
-                                          {t.stock === 1 ? "par" : "pares"}
-                                        </span>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <span style={{ color: "var(--text-secondary)" }}>
-                                      No hay tallas registradas.
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
+                  {visibleShoes.map((item) => (
+                    <ShoeCatalogRow
+                      key={item.id}
+                      item={item}
+                      isExpanded={expandedShoeSet.has(item.id)}
+                      searchedSizesKey={searchedSizesKey}
+                      onToggle={toggleRow}
+                      onPreview={handlePreviewImage}
+                    />
+                  ))}
                   {displayCount < filteredShoes.length && (
                     <tr ref={shoesObserverRef}>
-                      <td colSpan={7} style={{ textAlign: "center", padding: "1.25rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                        Cargando más productos ({visibleShoes.length} de {filteredShoes.length})...
+                      <td
+                        colSpan={7}
+                        style={{
+                          textAlign: "center",
+                          padding: "1.25rem",
+                          color: "var(--text-muted)",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        Cargando más productos ({visibleShoes.length} de{" "}
+                        {filteredShoes.length})...
                       </td>
                     </tr>
                   )}
                   {filteredShoes.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>
-                        No se encontraron resultados para &ldquo;{searchQuery}&rdquo;
+                      <td
+                        colSpan={7}
+                        style={{ textAlign: "center", padding: "3rem" }}
+                      >
+                        No se encontraron resultados para &ldquo;{searchQuery}
+                        &rdquo;
                       </td>
                     </tr>
                   )}
@@ -656,14 +915,21 @@ export default function InventoryDashboard() {
                     marginTop: "0.25rem",
                   }}
                 >
-                  Consulta existencias por tallas de camisas (S, M, L, XL y especiales)
+                  Consulta existencias por tallas de camisas (S, M, L, XL y
+                  especiales)
                 </p>
               </div>
             </header>
 
-            <div className={adminStyles.tableContainer} style={{ marginTop: "1rem" }}>
+            <div
+              className={adminStyles.tableContainer}
+              style={{ marginTop: "1rem" }}
+            >
               <div className={adminStyles.tableHeader}>
-                <div className={adminStyles.searchBox} style={{ width: "min(100%, 380px)" }}>
+                <div
+                  className={adminStyles.searchBox}
+                  style={{ width: "min(100%, 380px)" }}
+                >
                   <Search className={adminStyles.searchIcon} size={18} />
                   <input
                     type="text"
@@ -723,107 +989,40 @@ export default function InventoryDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleShirts.map((item) => {
-                    const isExpanded = expandedShirtRows.includes(item.id);
-                    const totalStock = getTotalShirtStock(item.tallas);
-                    const titleText = formatProductTitle(item.marca, item.nombre);
-
-                    return (
-                      <React.Fragment key={item.id}>
-                        <tr
-                          className={adminStyles.mainRow}
-                          onClick={() => toggleShirtRow(item.id)}
-                        >
-                          <td>
-                            <ChevronDown
-                              size={18}
-                              className={`${adminStyles.expandIcon} ${
-                                isExpanded ? adminStyles.open : ""
-                              }`}
-                            />
-                          </td>
-                          <td>
-                            <div className={adminStyles.productCell}>
-                              <ProductImage
-                                src={item.imageUrl}
-                                alt={titleText}
-                                fallbackEmoji="👕"
-                                imageClassName={adminStyles.shoeImage}
-                                placeholderClassName={adminStyles.shoeImagePlaceholder}
-                                onPreview={(url) => setPreviewImage(url)}
-                              />
-                              <div style={{ display: "flex", flexDirection: "column" }}>
-                                <span
-                                  style={{
-                                    fontWeight: "bold",
-                                    fontSize: "1.05rem",
-                                  }}
-                                >
-                                  {titleText}
-                                </span>
-                                <CopyableCode code={item.codigo} />
-                              </div>
-                            </div>
-                          </td>
-                          <td>{item.color}</td>
-                          <td style={{ fontWeight: 600 }}>${item.precioRevendedor || 0}</td>
-                          <td style={{ fontWeight: 600 }}>${item.precio}</td>
-                          <td>{totalStock}</td>
-                          <td>{getStockBadge(totalStock)}</td>
-                        </tr>
-                        {isExpanded && (
-                          <tr className={adminStyles.expandedContent}>
-                            <td colSpan={7}>
-                              <div className={adminStyles.expandedInner}>
-                                <h4>Tallas Disponibles (Unidades)</h4>
-                                <div className={adminStyles.sizesGrid}>
-                                  {item.tallas?.length > 0 ? (
-                                    item.tallas.map((t, idx) => (
-                                      <div key={idx} className={adminStyles.sizeCard}>
-                                        <span className={adminStyles.sizeNumber}>
-                                          {t.talla}
-                                        </span>
-                                        <div className={adminStyles.sizeDivider} />
-                                        <span
-                                          className={`${adminStyles.sizeStockBadge} ${
-                                            t.stock === 0
-                                              ? adminStyles.noStock
-                                              : t.stock < 3
-                                              ? adminStyles.lowStock
-                                              : adminStyles.inStock
-                                          }`}
-                                        >
-                                          {t.stock}
-                                        </span>
-                                        <span className={adminStyles.sizeStockLabel}>
-                                          {t.stock === 1 ? "unidad" : "unidades"}
-                                        </span>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <span style={{ color: "var(--text-secondary)" }}>
-                                      No hay tallas registradas.
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
+                  {visibleShirts.map((item) => (
+                    <ShirtCatalogRow
+                      key={item.id}
+                      item={item}
+                      isExpanded={expandedShirtSet.has(item.id)}
+                      searchedSizesKey={searchedSizesKey}
+                      onToggle={toggleShirtRow}
+                      onPreview={handlePreviewImage}
+                    />
+                  ))}
                   {displayCount < filteredShirts.length && (
                     <tr ref={shirtsObserverRef}>
-                      <td colSpan={7} style={{ textAlign: "center", padding: "1.25rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                        Cargando más productos ({visibleShirts.length} de {filteredShirts.length})...
+                      <td
+                        colSpan={7}
+                        style={{
+                          textAlign: "center",
+                          padding: "1.25rem",
+                          color: "var(--text-muted)",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        Cargando más productos ({visibleShirts.length} de{" "}
+                        {filteredShirts.length})...
                       </td>
                     </tr>
                   )}
                   {filteredShirts.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: "center", padding: "3rem" }}>
-                        No se encontraron resultados en camisas para &ldquo;{searchQuery}&rdquo;
+                      <td
+                        colSpan={7}
+                        style={{ textAlign: "center", padding: "3rem" }}
+                      >
+                        No se encontraron resultados en camisas para &ldquo;
+                        {searchQuery}&rdquo;
                       </td>
                     </tr>
                   )}
@@ -837,7 +1036,7 @@ export default function InventoryDashboard() {
       {/* Lightbox Modal */}
       <ImageLightbox
         src={previewImage}
-        onClose={() => setPreviewImage(null)}
+        onClose={handleClosePreview}
         overlayClassName={adminStyles.lightboxOverlay}
         closeBtnClassName={adminStyles.lightboxClose}
         imgClassName={adminStyles.lightboxImg}

@@ -314,12 +314,38 @@ interface IndexedProduct {
 }
 
 const productIndexCache = new WeakMap<SearchableProduct, IndexedProduct>();
+const productSignatureCache = new Map<string, IndexedProduct>();
+
+function buildSignature(item: SearchableProduct): string {
+  let sizesKey = "";
+  if (Array.isArray(item.tallas)) {
+    for (let i = 0; i < item.tallas.length; i++) {
+      const t = item.tallas[i];
+      if ((t.stock || 0) > 0) {
+        sizesKey += `${t.talla}:${t.stock},`;
+      }
+    }
+  }
+  return `${item.id || ""}|${item.marca || ""}|${item.nombre || ""}|${item.codigo || ""}|${item.color || ""}|${sizesKey}`;
+}
 
 function getOrBuildProductIndex(item: SearchableProduct): IndexedProduct {
   const cached = productIndexCache.get(item);
   if (cached) return cached;
+
+  const sig = buildSignature(item);
+  const sigCached = productSignatureCache.get(sig);
+  if (sigCached) {
+    productIndexCache.set(item, sigCached);
+    return sigCached;
+  }
+
   const built = buildProductIndex(item);
   productIndexCache.set(item, built);
+  if (productSignatureCache.size > 3000) {
+    productSignatureCache.clear();
+  }
+  productSignatureCache.set(sig, built);
   return built;
 }
 
@@ -648,4 +674,90 @@ export function getSearchedSizes(rawQuery: string): string[] {
     }
   }
   return sizes;
+}
+
+
+/**
+ * Fast O(N) comparison without allocating megabytes via JSON.stringify.
+ */
+export function isSameInventoryData(prev: any[], next: any[]): boolean {
+  if (prev === next) return true;
+  if (!Array.isArray(prev) || !Array.isArray(next)) return false;
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i++) {
+    const a = prev[i];
+    const b = next[i];
+    if (
+      a.id !== b.id ||
+      a.codigo !== b.codigo ||
+      a.nombre !== b.nombre ||
+      a.marca !== b.marca ||
+      a.color !== b.color ||
+      a.precio !== b.precio ||
+      a.precioRevendedor !== b.precioRevendedor ||
+      a.precioCompra !== b.precioCompra ||
+      (a.imageUrl || "").length !== (b.imageUrl || "").length ||
+      (a.imageUrl || "").slice(0, 64) !== (b.imageUrl || "").slice(0, 64)
+    ) {
+      return false;
+    }
+    const ta = a.tallas || [];
+    const tb = b.tallas || [];
+    if (ta.length !== tb.length) return false;
+    for (let j = 0; j < ta.length; j++) {
+      if (ta[j].talla !== tb[j].talla || ta[j].stock !== tb[j].stock) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * Saves inventory cache during browser idle time so JSON.stringify + localStorage
+ * never blocks mobile touch/scroll frames. Falls back to stripping inline base64
+ * if mobile localStorage 5MB quota is exceeded.
+ */
+export function saveCacheIdle(key: string, data: any[]): void {
+  if (typeof window === "undefined") return;
+  const task = () => {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch {
+      try {
+        const lightweight = data.map((item) =>
+          item.imageUrl && String(item.imageUrl).startsWith("data:")
+            ? { ...item, imageUrl: "" }
+            : item
+        );
+        localStorage.setItem(key, JSON.stringify(lightweight));
+      } catch {
+        // Ignore storage quota error
+      }
+    }
+  };
+  const win = window as any;
+  if (typeof win.requestIdleCallback === "function") {
+    win.requestIdleCallback(task, { timeout: 2000 });
+  } else {
+    setTimeout(task, 150);
+  }
+}
+
+/**
+ * Pre-warms the search index during idle time so the first search keystroke is instant.
+ */
+export function prewarmSearchIndex(items: SearchableProduct[]): void {
+  if (typeof window === "undefined" || !Array.isArray(items) || items.length === 0) return;
+  const task = () => {
+    for (let i = 0; i < items.length; i++) {
+      getOrBuildProductIndex(items[i]);
+    }
+  };
+  const win = window as any;
+  if (typeof win.requestIdleCallback === "function") {
+    win.requestIdleCallback(task, { timeout: 1500 });
+  } else {
+    setTimeout(task, 80);
+  }
 }

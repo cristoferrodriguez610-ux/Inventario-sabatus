@@ -21,7 +21,7 @@ import {
   DollarSign
 } from "lucide-react";
 import styles from "./page.module.css";
-import { filterAndRankProducts, getSearchedSizes } from "@/lib/search";
+import { filterAndRankProducts, getSearchedSizes, isSameInventoryData, saveCacheIdle, prewarmSearchIndex } from "@/lib/search";
 import { ProductImage, ImageLightbox, CopyableCode } from "@/components/ProductImage";
 import {
   AUTH_TOKEN_KEY,
@@ -102,29 +102,10 @@ export default function AdminDashboard() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Data states with immediate local cache
-  const [inventory, setInventory] = useState<Shoe[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem(ADMIN_SHOES_CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
-  const [shirtInventory, setShirtInventory] = useState<Shirt[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem(ADMIN_SHIRTS_CACHE_KEY);
-        return cached ? JSON.parse(cached) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  // Data states (hydrated once in useEffect to avoid double synchronous JSON.parse on mobile startup)
+  const [inventory, setInventory] = useState<Shoe[]>([]);
+  const [shirtInventory, setShirtInventory] = useState<Shirt[]>([]);
+  const stockSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [users, setUsers] = useState<User[]>([]);
   
   const [isClient, setIsClient] = useState(false);
@@ -304,17 +285,25 @@ export default function AdminDashboard() {
       ]);
       if (invRes.ok) {
         const invData = await invRes.json();
-        setInventory(invData);
-        try {
-          localStorage.setItem(ADMIN_SHOES_CACHE_KEY, JSON.stringify(invData));
-        } catch {}
+        if (Array.isArray(invData)) {
+          setInventory((prev) => {
+            if (isSameInventoryData(prev, invData)) return prev;
+            saveCacheIdle(ADMIN_SHOES_CACHE_KEY, invData);
+            prewarmSearchIndex(invData);
+            return invData;
+          });
+        }
       }
       if (shirtsRes.ok) {
         const shirtsData = await shirtsRes.json();
-        setShirtInventory(shirtsData);
-        try {
-          localStorage.setItem(ADMIN_SHIRTS_CACHE_KEY, JSON.stringify(shirtsData));
-        } catch {}
+        if (Array.isArray(shirtsData)) {
+          setShirtInventory((prev) => {
+            if (isSameInventoryData(prev, shirtsData)) return prev;
+            saveCacheIdle(ADMIN_SHIRTS_CACHE_KEY, shirtsData);
+            prewarmSearchIndex(shirtsData);
+            return shirtsData;
+          });
+        }
       }
       if (usersRes.ok) {
         const usersData = await usersRes.json();
@@ -350,8 +339,20 @@ export default function AdminDashboard() {
     try {
       const cachedShoes = localStorage.getItem(ADMIN_SHOES_CACHE_KEY);
       const cachedShirts = localStorage.getItem(ADMIN_SHIRTS_CACHE_KEY);
-      if (cachedShoes) setInventory(JSON.parse(cachedShoes));
-      if (cachedShirts) setShirtInventory(JSON.parse(cachedShirts));
+      if (cachedShoes) {
+        const parsedShoes = JSON.parse(cachedShoes);
+        if (Array.isArray(parsedShoes)) {
+          setInventory(parsedShoes);
+          prewarmSearchIndex(parsedShoes);
+        }
+      }
+      if (cachedShirts) {
+        const parsedShirts = JSON.parse(cachedShirts);
+        if (Array.isArray(parsedShirts)) {
+          setShirtInventory(parsedShirts);
+          prewarmSearchIndex(parsedShirts);
+        }
+      }
       if (cachedShoes || cachedShirts) {
         setIsLoadingData(false);
       }
@@ -505,27 +506,42 @@ export default function AdminDashboard() {
     setFormData({ ...formData, tallas: newTallas });
   };
 
-  const handleQuickStockChange = async (shoe: Shoe, sizeIdx: number, delta: number) => {
-    const newStock = Math.max(0, shoe.tallas[sizeIdx].stock + delta);
-    const updatedTallas = shoe.tallas.map((t, i) =>
-      i === sizeIdx ? { ...t, stock: newStock } : t
-    );
-    setInventory(inventory.map(item =>
-      item.id === shoe.id ? { ...item, tallas: updatedTallas } : item
-    ));
-
-    const payload = { ...shoe, tallas: updatedTallas };
-
-    try {
-      await fetch("/api/inventory", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+  const handleQuickStockChange = (shoe: Shoe, sizeIdx: number, delta: number) => {
+    let updatedShoe: Shoe | null = null;
+    setInventory((prev) => {
+      const next = prev.map((item) => {
+        if (item.id !== shoe.id) return item;
+        const currentStock = item.tallas[sizeIdx]?.stock ?? 0;
+        const newStock = Math.max(0, currentStock + delta);
+        const updatedTallas = item.tallas.map((t, i) =>
+          i === sizeIdx ? { ...t, stock: newStock } : t
+        );
+        updatedShoe = { ...item, tallas: updatedTallas };
+        return updatedShoe;
       });
-    } catch (error) {
-      console.error("Inline save error:", error);
-      fetchData();
-    }
+      saveCacheIdle(ADMIN_SHOES_CACHE_KEY, next);
+      return next;
+    });
+
+    const timerKey = `shoe_${shoe.id}`;
+    const existingTimer = stockSyncTimersRef.current.get(timerKey);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    const timer = setTimeout(async () => {
+      stockSyncTimersRef.current.delete(timerKey);
+      if (!updatedShoe) return;
+      try {
+        await fetch("/api/inventory", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedShoe),
+        });
+      } catch (error) {
+        console.error("Inline save error:", error);
+        fetchData();
+      }
+    }, 350);
+    stockSyncTimersRef.current.set(timerKey, timer);
   };
 
   const saveInlineStock = async (shoe: Shoe, sizeIdx: number) => {
@@ -698,27 +714,42 @@ export default function AdminDashboard() {
     setShirtFormData({ ...shirtFormData, tallas: newTallas });
   };
 
-  const handleQuickShirtStockChange = async (shirt: Shirt, sizeIdx: number, delta: number) => {
-    const newStock = Math.max(0, shirt.tallas[sizeIdx].stock + delta);
-    const updatedTallas = shirt.tallas.map((t, i) =>
-      i === sizeIdx ? { ...t, stock: newStock } : t
-    );
-    setShirtInventory(shirtInventory.map(item =>
-      item.id === shirt.id ? { ...item, tallas: updatedTallas } : item
-    ));
-
-    const payload = { ...shirt, tallas: updatedTallas };
-
-    try {
-      await fetch("/api/shirts", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+  const handleQuickShirtStockChange = (shirt: Shirt, sizeIdx: number, delta: number) => {
+    let updatedShirt: Shirt | null = null;
+    setShirtInventory((prev) => {
+      const next = prev.map((item) => {
+        if (item.id !== shirt.id) return item;
+        const currentStock = item.tallas[sizeIdx]?.stock ?? 0;
+        const newStock = Math.max(0, currentStock + delta);
+        const updatedTallas = item.tallas.map((t, i) =>
+          i === sizeIdx ? { ...t, stock: newStock } : t
+        );
+        updatedShirt = { ...item, tallas: updatedTallas };
+        return updatedShirt;
       });
-    } catch (error) {
-      console.error("Inline save error:", error);
-      fetchData();
-    }
+      saveCacheIdle(ADMIN_SHIRTS_CACHE_KEY, next);
+      return next;
+    });
+
+    const timerKey = `shirt_${shirt.id}`;
+    const existingTimer = stockSyncTimersRef.current.get(timerKey);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    const timer = setTimeout(async () => {
+      stockSyncTimersRef.current.delete(timerKey);
+      if (!updatedShirt) return;
+      try {
+        await fetch("/api/shirts", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedShirt),
+        });
+      } catch (error) {
+        console.error("Inline save error:", error);
+        fetchData();
+      }
+    }, 350);
+    stockSyncTimersRef.current.set(timerKey, timer);
   };
 
   const saveInlineShirtStock = async (shirt: Shirt, sizeIdx: number) => {
@@ -936,25 +967,57 @@ export default function AdminDashboard() {
   const getTotalShoeStock = (tallas: ShoeSize[]) => (tallas || []).reduce((sum, t) => sum + (t.stock || 0), 0);
   const getTotalShirtStock = (tallas: ShirtSize[]) => (tallas || []).reduce((sum, t) => sum + (t.stock || 0), 0);
 
-  const totalAllShoesUnits = inventory.reduce((acc, s) => acc + getTotalShoeStock(s.tallas), 0);
-  const totalShoePatrimonioCompra = inventory.reduce((acc, s) => {
-    const stock = getTotalShoeStock(s.tallas);
-    return acc + (stock * (Number(s.precioCompra) || 0));
-  }, 0);
-  const totalShoePatrimonioVenta = inventory.reduce((acc, s) => {
-    const stock = getTotalShoeStock(s.tallas);
-    return acc + (stock * (Number(s.precio) || 0));
-  }, 0);
+  const {
+    totalAllShoesUnits,
+    totalShoePatrimonioCompra,
+    totalShoePatrimonioVenta,
+    lowStockShoesCount,
+  } = useMemo(() => {
+    let units = 0;
+    let compra = 0;
+    let venta = 0;
+    let lowStock = 0;
+    for (let i = 0; i < inventory.length; i++) {
+      const s = inventory[i];
+      const stock = getTotalShoeStock(s.tallas);
+      units += stock;
+      compra += stock * (Number(s.precioCompra) || 0);
+      venta += stock * (Number(s.precio) || 0);
+      if (stock < 10) lowStock++;
+    }
+    return {
+      totalAllShoesUnits: units,
+      totalShoePatrimonioCompra: compra,
+      totalShoePatrimonioVenta: venta,
+      lowStockShoesCount: lowStock,
+    };
+  }, [inventory]);
 
-  const totalAllShirtsUnits = shirtInventory.reduce((acc, s) => acc + getTotalShirtStock(s.tallas), 0);
-  const totalShirtPatrimonioCompra = shirtInventory.reduce((acc, s) => {
-    const stock = getTotalShirtStock(s.tallas);
-    return acc + (stock * (Number(s.precioCompra) || 0));
-  }, 0);
-  const totalShirtPatrimonioVenta = shirtInventory.reduce((acc, s) => {
-    const stock = getTotalShirtStock(s.tallas);
-    return acc + (stock * (Number(s.precio) || 0));
-  }, 0);
+  const {
+    totalAllShirtsUnits,
+    totalShirtPatrimonioCompra,
+    totalShirtPatrimonioVenta,
+    lowStockShirtsCount,
+  } = useMemo(() => {
+    let units = 0;
+    let compra = 0;
+    let venta = 0;
+    let lowStock = 0;
+    for (let i = 0; i < shirtInventory.length; i++) {
+      const s = shirtInventory[i];
+      const stock = getTotalShirtStock(s.tallas);
+      units += stock;
+      compra += stock * (Number(s.precioCompra) || 0);
+      venta += stock * (Number(s.precio) || 0);
+      if (stock < 10) lowStock++;
+    }
+    return {
+      totalAllShirtsUnits: units,
+      totalShirtPatrimonioCompra: compra,
+      totalShirtPatrimonioVenta: venta,
+      lowStockShirtsCount: lowStock,
+    };
+  }, [shirtInventory]);
 
   const formatMoney = (amount: number) => {
     return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1169,7 +1232,7 @@ export default function AdminDashboard() {
                 <div className={styles.statInfo}>
                   <span className={styles.statLabel}>Stock Bajo / Agotado</span>
                   <span className={styles.statValue}>
-                    {inventory.filter(i => getTotalShoeStock(i.tallas) < 10).length}
+                    {lowStockShoesCount}
                   </span>
                 </div>
               </div>
@@ -1533,7 +1596,7 @@ export default function AdminDashboard() {
                 <div className={styles.statInfo}>
                   <span className={styles.statLabel}>Stock Bajo / Agotado</span>
                   <span className={styles.statValue}>
-                    {shirtInventory.filter(i => getTotalShirtStock(i.tallas) < 10).length}
+                    {lowStockShirtsCount}
                   </span>
                 </div>
               </div>

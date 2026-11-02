@@ -7,7 +7,7 @@ const RANGE = `${SHEET_NAME}!A3:M`;
 
 let camisasSheetVerified = false;
 let shirtsCache: { data: any[]; timestamp: number } | null = null;
-const SHIRTS_CACHE_TTL_MS = 10_000; // 10 seconds
+const SHIRTS_CACHE_TTL_MS = 60_000; // 60 seconds
 
 type ShirtSize = {
   talla: string;

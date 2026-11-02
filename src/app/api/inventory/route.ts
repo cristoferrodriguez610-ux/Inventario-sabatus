@@ -6,7 +6,7 @@ const RANGE = "Inventario!A3:T"; // Expanded to T to accommodate 12 sizes (34-45
 
 // Short in-memory cache so parallel or repeated device requests don't hammer Google Sheets API
 let inventoryCache: { data: any[]; timestamp: number } | null = null;
-const INVENTORY_CACHE_TTL_MS = 10_000; // 10 seconds
+const INVENTORY_CACHE_TTL_MS = 60_000; // 60 seconds
 
 // Helper to map sizes to array indices (34 to 45 -> 1 to 12)
 const SIZES = [34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45];
@@ -269,7 +269,27 @@ export async function PUT(request: Request) {
       },
     });
 
-    inventoryCache = null;
+    if (inventoryCache) {
+      inventoryCache = {
+        data: inventoryCache.data.map((item) =>
+          item.id === body.id
+            ? {
+                ...item,
+                codigo: cleanCode,
+                nombre: (body.nombre || "").trim(),
+                marca: (body.marca || "").trim(),
+                color: (body.color || "").trim(),
+                precioCompra: Number(body.precioCompra) || 0,
+                precioRevendedor: Number(body.precioRevendedor) || 0,
+                precio: Number(body.precio) || 0,
+                imageUrl: (body.imageUrl || "").trim().replace(/^http:\/\//i, "https://"),
+                tallas: SIZES.map((sz, i) => ({ talla: sz, stock: Number(sizeStocks[i]) || 0 })),
+              }
+            : item
+        ),
+        timestamp: Date.now(),
+      };
+    }
     return NextResponse.json({ success: true, message: "Item updated" });
   } catch (error) {
     console.error("PUT Error:", error);
